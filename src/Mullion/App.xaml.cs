@@ -222,6 +222,12 @@ public partial class App : Application
             StartArranging = StartArranging,
             ApplyRulesNow = ApplyRulesNow,
             GetMonitorCount = () => Math.Max(1, Native.GetWorkAreas().Count),
+            GetOpenPrograms = () => WindowList.GetArrangeable(includeExcluded: true)
+                .Select(entry => WindowList.ProgramOf(entry.Handle))
+                .Where(program => program != "?")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(program => program, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             GetOpenWindows = () => WindowList.GetArrangeable()
                 .Select(entry => (Program: WindowList.ProgramOf(entry.Handle), entry.Title))
                 .Where(window => window.Program != "?")
@@ -284,7 +290,7 @@ public partial class App : Application
 
         string program = WindowList.ProgramOf(window);
         string title = Native.GetWindowTitle(window);
-        if (program == "?")
+        if (program == "?" || WindowList.IsExcluded(window))
         {
             return;
         }
@@ -426,6 +432,7 @@ public partial class App : Application
     private void ApplySettings()
     {
         _settings.Normalize();
+        WindowList.SetExcludedPrograms(_settings.ExcludedPrograms);
 
         if (_input is not null)
         {

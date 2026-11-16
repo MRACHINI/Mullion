@@ -45,6 +45,12 @@ public interface IGestureHost
     /// <summary>The visible bounds of a window, or null when they cannot be read.</summary>
     RectI? GetFrameBounds(nint window);
 
+    /// <summary>
+    /// False for a window the user has told Mullion to leave alone. Asked once when
+    /// a drag starts, so it may take a moment but must not block.
+    /// </summary>
+    bool CanArrange(nint window);
+
     bool IsSnapModifierDown();
 
     /// <summary>Ends the system's own move of the dragged window, putting it back where it started.</summary>
@@ -230,7 +236,9 @@ public sealed class GestureMachine
     {
         if (!InGridMode)
         {
-            _moving = window;
+            // A window Mullion is to leave alone is treated as if nothing were being
+            // dragged: the right button and the snap key keep their usual meaning.
+            _moving = _host.CanArrange(window) ? window : 0;
         }
     }
 

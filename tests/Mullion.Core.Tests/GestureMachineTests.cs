@@ -19,8 +19,11 @@ public class GestureMachineTests
         public int OverlayUpdates;
         public List<(nint Window, RectI Bounds, bool KeepSize)> Placements = [];
 
+        public HashSet<nint> LeftAlone = [];
+
         public RectI WorkAreaAt(PointI point) => Area;
         public RectI? GetFrameBounds(nint window) => Frame;
+        public bool CanArrange(nint window) => !LeftAlone.Contains(window);
         public bool IsSnapModifierDown() => ModifierDown;
         public void CancelSystemMove() => SystemMoveCancels++;
         public void SetCancelKeyEnabled(bool enabled) => CancelKeyEnabled = enabled;
@@ -110,6 +113,55 @@ public class GestureMachineTests
         Assert.Null(host.Overlay);
         Assert.False(host.CancelKeyEnabled);
         Assert.Equal([(Window, new RectI(480, 260, 1440, 1040), false)], host.Placements);
+    }
+
+    [Fact]
+    public void A_window_to_be_left_alone_gets_no_grid()
+    {
+        var (machine, host) = Create();
+        host.LeftAlone.Add(Window);
+        StartDrag(machine);
+
+        // The right-click is not hidden and nothing is shown or cancelled.
+        Assert.False(machine.OnRightDown(new PointI(500, 300)));
+        Assert.False(machine.OnRightUp(new PointI(500, 300)));
+        Assert.Null(host.Overlay);
+        Assert.Equal(0, host.SystemMoveCancels);
+
+        machine.OnLeftUp(new PointI(500, 300));
+        machine.OnMoveSizeEnd(Window);
+        Assert.Empty(host.Placements);
+    }
+
+    [Fact]
+    public void A_window_to_be_left_alone_is_not_snapped_either()
+    {
+        var (machine, host) = Create();
+        host.LeftAlone.Add(Window);
+        host.ModifierDown = true;
+        StartDrag(machine);
+
+        Assert.Null(host.Overlay);
+
+        machine.OnLeftUp(new PointI(620, 330));
+        machine.OnMoveSizeEnd(Window);
+        Assert.Empty(host.Placements);
+    }
+
+    [Fact]
+    public void Leaving_one_window_alone_does_not_affect_the_next_drag()
+    {
+        var (machine, host) = Create();
+        host.LeftAlone.Add(0x9999);
+
+        Assert.False(machine.OnLeftDown(new PointI(600, 310)));
+        machine.OnMoveSizeStart(0x9999);
+        machine.OnLeftUp(new PointI(600, 310));
+        machine.OnMoveSizeEnd(0x9999);
+
+        StartDrag(machine);
+        Assert.True(machine.OnRightDown(new PointI(500, 300)));
+        Assert.NotNull(host.Overlay);
     }
 
     [Fact]

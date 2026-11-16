@@ -92,5 +92,6 @@ internal sealed class ZoneRunner
         Native.IsWindow(window)
         && Native.IsWindowVisible(window)
         && !Native.IsIconic(window)
-        && !WindowList.IsShellWindow(window);
+        && !WindowList.IsShellWindow(window)
+        && !WindowList.IsExcluded(window);
 }

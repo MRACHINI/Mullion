@@ -575,6 +575,8 @@ internal sealed class InputThread : IGestureHost, IDisposable
 
     RectI? IGestureHost.GetFrameBounds(nint window) => Native.GetFrameBounds(window);
 
+    bool IGestureHost.CanArrange(nint window) => !WindowList.IsExcluded(window);
+
     bool IGestureHost.IsSnapModifierDown()
     {
         int key = _snapModifierKey;

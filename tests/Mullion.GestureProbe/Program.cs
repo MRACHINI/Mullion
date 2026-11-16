@@ -69,6 +69,74 @@ try
     Win.SetForegroundWindow(window);
     Thread.Sleep(400);
 
+    // "exclusions" checks that an excluded program is left alone. Mullion must be
+    // running with tests/Mullion.GestureProbe/exclusions.settings.json, which
+    // excludes this probe and would otherwise snap, place and remember its windows.
+    if (args.Length > 0 && args[0] == "exclusions")
+    {
+        const ushort F11 = 0x7A;
+        const ushort Shift = 0x10;
+        var opened = new List<TargetWindow>();
+
+        try
+        {
+            // Dragging with the move-on-grid key held must not snap the window.
+            var before = Win.Frame(window);
+            var grip = Grip(before);
+            int gridX = work.Left + (w / 4);
+            int gridY = work.Top + (h / 4);
+            int dx = gridX + 30 - before.Left;
+            int dy = gridY + 20 - before.Top;
+
+            Press(grip.X, grip.Y);
+            Mouse.Glide(grip.X, grip.Y, grip.X + 20, grip.Y + 20);
+            Keyboard.Down(Shift);
+            Thread.Sleep(100);
+            Mouse.Glide(grip.X + 20, grip.Y + 20, grip.X + dx, grip.Y + dy);
+            Thread.Sleep(200);
+            Mouse.LeftUp();
+            Thread.Sleep(200);
+            Keyboard.Up(Shift);
+            Thread.Sleep(700);
+
+            var dropped = Win.Frame(window);
+            bool whereDropped = Math.Abs(dropped.Left - (gridX + 30)) <= 6 && Math.Abs(dropped.Top - (gridY + 20)) <= 6;
+            CheckThat("Dragging an excluded program's window with the key held does not snap it", whereDropped);
+            if (!whereDropped)
+            {
+                Console.WriteLine($"        expected near {gridX + 30},{gridY + 20}");
+                Console.WriteLine($"        actual   {dropped}");
+            }
+
+            // A zone shortcut must not move it.
+            Press((dropped.Left + dropped.Right) / 2, (dropped.Top + dropped.Bottom) / 2);
+            Mouse.LeftUp();
+            Thread.Sleep(300);
+            Shortcut(F11);
+            Thread.Sleep(900);
+            Check("A zone shortcut does not move an excluded program's window", Win.Frame(window), dropped);
+
+            // A rule that would match must not place a new window.
+            var ruled = new TargetWindow("Mullion probe rule target", topMost: false, x: work.Left + 200, y: work.Top + 200);
+            opened.Add(ruled);
+            Thread.Sleep(200);
+            var ruledStart = Win.Frame(ruled.Handle);
+            Thread.Sleep(2500);
+            Check("A matching rule does not place an excluded program's window", Win.Frame(ruled.Handle), ruledStart);
+        }
+        finally
+        {
+            Keyboard.Up(Shift);
+            foreach (var each in opened)
+            {
+                each.Close();
+            }
+        }
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
+
     // "remember" checks that placing a window is remembered: after the test window
     // is placed with a shortcut, and then with the grid gesture, a new window of the
     // same program opens in the same place. Mullion must be running with

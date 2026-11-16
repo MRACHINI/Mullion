@@ -136,6 +136,18 @@ A window is placed once, when it first appears; if you move it afterwards,
 Mullion leaves it there. Rules need the zone they point at: deleting that zone
 leaves the rule in the list, marked, until you point it at another.
 
+### Exclusions: programs to leave alone
+
+Some programs are better left untouched: a game, a remote-desktop window, a tool
+that manages its own windows. List them under **Settings… → Exclusions** (pick
+one that has a window open, or type its name as Task Manager shows it) and
+Mullion ignores them completely: no grid when you drag their windows, no zone
+shortcuts, no arranging, and nothing is remembered or placed for them.
+
+One thing an exclusion cannot do: a zone shortcut pressed while an excluded
+program is active still does nothing there, because Mullion owns that key
+combination while it runs.
+
 ## Settings
 
 Right-click the Mullion icon in the notification area and choose **Settings…**
@@ -148,6 +160,7 @@ Right-click the Mullion icon in the notification area and choose **Settings…**
 - **Zones**: the saved zones and their shortcuts, and the shortcut for arranging
   windows one by one.
 - **Rules**: which programs' windows go to which zone when they open.
+- **Exclusions**: programs Mullion leaves alone.
 - **Appearance**: colour and opacity of the tint, the grid lines and the
   selection.
 - **General**: start Mullion when you sign in to Windows.
@@ -199,6 +212,8 @@ seconds.
   `arrange` or `rules`.
 - Remembering placements: the same with `remember.settings.json` and the
   argument `remember`.
+- Exclusions: the same with `exclusions.settings.json` and the argument
+  `exclusions`.
 
 Mullion.exe also takes a few switches for tracking down problems: `--trace`
 adds step-by-step details to `mullion.log`, and `--list-windows file.txt` writes
@@ -218,10 +233,9 @@ Mullion's own screens to a PNG file without showing them.
 
 ## Roadmap
 
-Planned, roughly in this order: program exclusions, remappable mouse input,
-swapping two windows, arranging all windows automatically, named scenes, a panel
-opened by a hotkey, running elevated, settings export and import, and automatic
-updates.
+Planned, roughly in this order: remappable mouse input, swapping two windows,
+arranging all windows automatically, named scenes, a panel opened by a hotkey,
+running elevated, settings export and import, and automatic updates.
 
 Ideas kept for later, if they turn out to be needed:
 

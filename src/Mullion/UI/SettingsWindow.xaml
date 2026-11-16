@@ -364,6 +364,69 @@
                 </DockPanel>
             </TabItem>
 
+            <TabItem Header="Exclusions">
+                <DockPanel Margin="16,0,16,14">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Section}" Text="Exclusions" />
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}"
+                               Text="Mullion leaves these programs alone: no grid when you drag their windows, no shortcuts, no arranging, and nothing is remembered or placed for them." />
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource Label}" Margin="0,0,12,0" Text="Program" />
+                            <ComboBox x:Name="ExclusionBox" Grid.Column="1" IsEditable="True" IsTextSearchEnabled="False"
+                                      DropDownOpened="OnExclusionDropDownOpened" KeyDown="OnExclusionKeyDown"
+                                      AutomationProperties.Name="Program to exclude" />
+                            <Button Grid.Column="2" Margin="8,0,0,0" Padding="16,4" Content="Add" Click="OnAddExclusionClick" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                   Text="Choose a program that has a window open now, or type its name as Task Manager shows it, for example photoshop." />
+                    </StackPanel>
+
+                    <Border BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="4" Background="White">
+                        <Grid>
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FF6B7280"
+                                       Text="No programs are excluded.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasExclusions}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding ExcludedPrograms}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#FFE5E7EB" BorderThickness="0,0,0,1" Padding="12,7">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" Text="{Binding}" />
+                                                    <Button Grid.Column="1" Padding="12,3" Content="Remove" Click="OnRemoveExclusionClick" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+
             <TabItem Header="Appearance">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="16,0,16,14">

@@ -115,6 +115,35 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Excluded_programs_are_tidied_saved_and_loaded()
+    {
+        var settings = new Settings
+        {
+            ExcludedPrograms = ["  Photoshop.exe ", "chrome", "CHROME.EXE", "", "anydesk"],
+        };
+
+        SettingsStore.Save(FilePath, settings);
+        var loaded = SettingsStore.Load(FilePath);
+
+        Assert.Equal(["anydesk", "chrome", "Photoshop"], loaded.ExcludedPrograms);
+        Assert.True(loaded.IsExcluded("photoshop"));
+        Assert.True(loaded.IsExcluded("Chrome.exe"));
+        Assert.False(loaded.IsExcluded("notepad"));
+        Assert.False(loaded.IsExcluded(""));
+    }
+
+    [Fact]
+    public void A_missing_exclusion_list_is_treated_as_empty()
+    {
+        File.WriteAllText(FilePath, """{ "excludedPrograms": null }""");
+
+        var settings = SettingsStore.Load(FilePath);
+
+        Assert.Empty(settings.ExcludedPrograms);
+        Assert.False(settings.IsExcluded("chrome"));
+    }
+
+    [Fact]
     public void Null_appearance_is_replaced_with_defaults()
     {
         File.WriteAllText(FilePath, """{ "appearance": null }""");

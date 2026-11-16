@@ -285,6 +285,50 @@ internal static class Native
         return MonitorList.Sort(areas);
     }
 
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(nint handle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(nint process, uint flags, [Out] char[] name, ref uint size);
+
+    /// <summary>
+    /// The name of a running program without its folder or ".exe", as Task Manager
+    /// shows it; null when it cannot be read. Quick enough to call when a drag starts.
+    /// </summary>
+    public static string? GetProgramName(uint processId)
+    {
+        nint process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+        if (process == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var buffer = new char[1024];
+            uint size = (uint)buffer.Length;
+            if (!QueryFullProcessImageName(process, 0, buffer, ref size) || size == 0)
+            {
+                return null;
+            }
+
+            string path = new(buffer, 0, (int)size);
+            string name = System.IO.Path.GetFileNameWithoutExtension(path);
+            return name.Length > 0 ? name : null;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
     public const int DWMWA_CLOAKED = 14;
     public const uint GW_OWNER = 4;
     public const long WS_EX_APPWINDOW = 0x00040000;

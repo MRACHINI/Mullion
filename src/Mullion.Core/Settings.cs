@@ -80,6 +80,17 @@ public sealed class Settings
     public bool RememberPlacements { get; set; } = true;
 
     /// <summary>
+    /// Programs Mullion leaves alone, by name as Task Manager shows it, without
+    /// ".exe". Their windows get no grid, no shortcuts, no arranging, and nothing
+    /// is remembered or placed for them.
+    /// </summary>
+    public List<string> ExcludedPrograms { get; set; } = [];
+
+    /// <summary>True when Mullion is to leave the given program alone.</summary>
+    public bool IsExcluded(string program) =>
+        ExcludedPrograms.Contains(PlacementRules.NormalizeProgram(program), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// The shortcut, as text, that starts arranging the open windows one by one;
     /// empty for none.
     /// </summary>
@@ -138,6 +149,14 @@ public sealed class Settings
         }
 
         Rules.RemoveAll(rule => rule.Program.Length == 0);
+
+        // One tidy entry per program, whatever its case or ".exe", in alphabetical order.
+        ExcludedPrograms = (ExcludedPrograms ?? [])
+            .Select(PlacementRules.NormalizeProgram)
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>The zone with the given identifier, or null.</summary>
@@ -167,6 +186,7 @@ public sealed class Settings
         Rules = other.Rules.Select(rule => rule.Clone()).ToList();
         ApplyRulesOnOpen = other.ApplyRulesOnOpen;
         RememberPlacements = other.RememberPlacements;
+        ExcludedPrograms = [.. other.ExcludedPrograms];
         Normalize();
     }
 }

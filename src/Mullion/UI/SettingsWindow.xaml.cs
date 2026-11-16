@@ -91,6 +91,54 @@ internal partial class SettingsWindow : Window
         _viewModel.ApplyRulesNow();
     }
 
+    private void OnExclusionDropDownOpened(object sender, EventArgs e)
+    {
+        // Fill the list each time it opens, so it shows what is running now, and
+        // leave out programs that are excluded already.
+        string typed = ExclusionBox.Text;
+        ExclusionBox.Items.Clear();
+        foreach (string program in _viewModel.GetOpenPrograms())
+        {
+            if (!_viewModel.ExcludedPrograms.Contains(program, StringComparer.OrdinalIgnoreCase))
+            {
+                ExclusionBox.Items.Add(program);
+            }
+        }
+
+        ExclusionBox.Text = typed;
+    }
+
+    private void OnExclusionKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            AddTypedExclusion();
+            e.Handled = true;
+        }
+    }
+
+    private void OnAddExclusionClick(object sender, RoutedEventArgs e)
+    {
+        AddTypedExclusion();
+    }
+
+    private void AddTypedExclusion()
+    {
+        if (_viewModel.AddExclusion(ExclusionBox.Text))
+        {
+            ExclusionBox.SelectedItem = null;
+            ExclusionBox.Text = string.Empty;
+        }
+    }
+
+    private void OnRemoveExclusionClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is string program)
+        {
+            _viewModel.RemoveExclusion(program);
+        }
+    }
+
     private void OnForgetRememberedClick(object sender, RoutedEventArgs e)
     {
         var answer = MessageBox.Show(

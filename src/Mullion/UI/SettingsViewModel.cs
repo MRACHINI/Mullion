@@ -26,6 +26,7 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         _selectionColor = settings.Appearance.SelectionColor;
         RebuildZoneRows();
         RebuildRuleRows();
+        RebuildExclusions();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -150,6 +151,57 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     {
         get => _settings.CycleMonitors;
         set => Set(_settings.CycleMonitors, value, v => _settings.CycleMonitors = v);
+    }
+
+    /// <summary>The programs Mullion leaves alone, in alphabetical order.</summary>
+    public ObservableCollection<string> ExcludedPrograms { get; } = [];
+
+    public bool HasExclusions => ExcludedPrograms.Count > 0;
+
+    /// <summary>Lists the programs that have a window open now, for choosing one to exclude.</summary>
+    public Func<IReadOnlyList<string>> GetOpenPrograms { get; set; } = () => [];
+
+    /// <summary>
+    /// Adds a program to the ones Mullion leaves alone. Returns false when the name
+    /// is empty or the program is already on the list.
+    /// </summary>
+    public bool AddExclusion(string program)
+    {
+        string name = PlacementRules.NormalizeProgram(program);
+        if (name.Length == 0 || _settings.IsExcluded(name))
+        {
+            return false;
+        }
+
+        _settings.ExcludedPrograms.Add(name);
+        ExclusionsChanged();
+        return true;
+    }
+
+    public void RemoveExclusion(string program)
+    {
+        if (_settings.ExcludedPrograms.RemoveAll(name => string.Equals(name, program, StringComparison.OrdinalIgnoreCase)) > 0)
+        {
+            ExclusionsChanged();
+        }
+    }
+
+    private void ExclusionsChanged()
+    {
+        _settings.Normalize();
+        RebuildExclusions();
+        Changed?.Invoke();
+    }
+
+    private void RebuildExclusions()
+    {
+        ExcludedPrograms.Clear();
+        foreach (string name in _settings.ExcludedPrograms)
+        {
+            ExcludedPrograms.Add(name);
+        }
+
+        Raise(nameof(HasExclusions));
     }
 
     /// <summary>The placement rules, one row each.</summary>
@@ -380,16 +432,19 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
     public void ResetToDefaults()
     {
-        // Zones and rules are the user's own work, not options; resetting keeps them.
+        // Zones, rules and exclusions are the user's own work, not options;
+        // resetting keeps them.
         var defaults = new Settings
         {
             Zones = _settings.Zones,
             Rules = _settings.Rules,
+            ExcludedPrograms = _settings.ExcludedPrograms,
             CycleMonitors = _settings.CycleMonitors,
         };
         _settings.CopyFrom(defaults);
         RebuildZoneRows();
         RebuildRuleRows();
+        RebuildExclusions();
         _tintColor = _settings.Appearance.TintColor;
         _lineColor = _settings.Appearance.LineColor;
         _selectionColor = _settings.Appearance.SelectionColor;

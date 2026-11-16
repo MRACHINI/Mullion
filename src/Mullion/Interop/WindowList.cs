@@ -23,6 +23,18 @@ internal static class WindowList
     public static string ProgramOf(nint window)
     {
         Native.GetWindowThreadProcessId(window, out uint processId);
+        if (processId == 0)
+        {
+            return "?";
+        }
+
+        if (Native.GetProgramName(processId) is { } name)
+        {
+            return name;
+        }
+
+        // The quick way is refused for some protected programs; this slower one
+        // still knows their names.
         try
         {
             return System.Diagnostics.Process.GetProcessById((int)processId).ProcessName;
@@ -33,19 +45,42 @@ internal static class WindowList
         }
     }
 
+    private static volatile HashSet<string> _excluded = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Sets the programs Mullion is to leave alone. Every part of the app asks
+    /// <see cref="IsExcluded"/>, so one list covers the gesture, shortcuts,
+    /// arranging and rules. Safe to call from any thread.
+    /// </summary>
+    public static void SetExcludedPrograms(IEnumerable<string> programs)
+    {
+        _excluded = new HashSet<string>(programs, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>True when the window belongs to a program Mullion is to leave alone.</summary>
+    public static bool IsExcluded(nint window)
+    {
+        var excluded = _excluded;
+        return excluded.Count > 0 && excluded.Contains(ProgramOf(window));
+    }
+
     /// <summary>
     /// The windows that can be arranged, front-most first: visible, not minimized,
     /// with a title, shown in the taskbar, and not part of Mullion itself. This is
     /// roughly what Alt+Tab lists.
     /// </summary>
-    public static List<Entry> GetArrangeable()
+    /// <param name="includeExcluded">
+    /// Also list windows of programs Mullion is to leave alone; used where the user
+    /// chooses which programs those are.
+    /// </param>
+    public static List<Entry> GetArrangeable(bool includeExcluded = false)
     {
         var result = new List<Entry>();
         uint ownProcess = (uint)Environment.ProcessId;
 
         Native.EnumWindowsProc collect = (window, _) =>
         {
-            if (IsArrangeable(window, ownProcess))
+            if (IsArrangeable(window, ownProcess, includeExcluded))
             {
                 result.Add(new Entry(window, Native.GetWindowTitle(window)));
             }
@@ -60,9 +95,9 @@ internal static class WindowList
 
     /// <summary>True while a window found earlier is still there and still showing.</summary>
     public static bool IsStillArrangeable(nint window) =>
-        IsArrangeable(window, (uint)Environment.ProcessId);
+        IsArrangeable(window, (uint)Environment.ProcessId, includeExcluded: false);
 
-    private static bool IsArrangeable(nint window, uint ownProcess)
+    private static bool IsArrangeable(nint window, uint ownProcess, bool includeExcluded)
     {
         if (!Native.IsWindow(window) || !Native.IsWindowVisible(window) || Native.IsIconic(window))
         {
@@ -91,6 +126,12 @@ internal static class WindowList
             return false;
         }
 
-        return Native.GetWindowTitle(window).Length > 0;
+        if (Native.GetWindowTitle(window).Length == 0)
+        {
+            return false;
+        }
+
+        // Checked last because it is the slowest test.
+        return includeExcluded || !IsExcluded(window);
     }
 }
