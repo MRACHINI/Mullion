@@ -40,7 +40,8 @@ internal partial class SettingsWindow : Window
 
     private void OnAddZoneClick(object sender, RoutedEventArgs e)
     {
-        var editor = new ZoneEditorWindow(_viewModel.NewZone(), _viewModel.ZonesExcept(null), _viewModel.SetRecording)
+        var editor = new ZoneEditorWindow(
+            _viewModel.NewZone(), _viewModel.ZonesExcept(null), _viewModel.SetRecorder, _viewModel.IsOwnedElsewhere)
         {
             Owner = this,
             Title = "New zone",
@@ -59,7 +60,8 @@ internal partial class SettingsWindow : Window
             return;
         }
 
-        var editor = new ZoneEditorWindow(row.Zone, _viewModel.ZonesExcept(row), _viewModel.SetRecording)
+        var editor = new ZoneEditorWindow(
+            row.Zone, _viewModel.ZonesExcept(row), _viewModel.SetRecorder, _viewModel.IsOwnedElsewhere)
         {
             Owner = this,
             Title = "Edit zone",

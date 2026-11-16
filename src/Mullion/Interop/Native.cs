@@ -7,6 +7,17 @@ namespace Mullion.Interop;
 internal static class Native
 {
     public const int WH_MOUSE_LL = 14;
+    public const int WH_KEYBOARD_LL = 13;
+
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_KEYUP = 0x0101;
+    public const int WM_SYSKEYDOWN = 0x0104;
+    public const int WM_SYSKEYUP = 0x0105;
+    public const int VK_LWIN = 0x5B;
+    public const int VK_RWIN = 0x5C;
+
+    /// <summary>A key code no keyboard has; pressing it does nothing in any program.</summary>
+    public const ushort VK_UNASSIGNED = 0xE8;
 
     public const int WM_APP = 0x8000;
     public const int WM_HOTKEY = 0x0312;
@@ -269,6 +280,22 @@ internal static class Native
         EnumDisplayMonitors(0, 0, collect, 0);
         GC.KeepAlive(collect);
         return MonitorList.Sort(areas);
+    }
+
+    /// <summary>
+    /// True when a shortcut cannot be registered right now, which means some
+    /// program already owns it. The shortcut is released again straight away.
+    /// </summary>
+    public static bool IsHotkeyTaken(Hotkey hotkey)
+    {
+        const int ProbeId = 0xB000;
+        if (RegisterHotKey(0, ProbeId, (uint)hotkey.Modifiers, (uint)hotkey.Key))
+        {
+            UnregisterHotKey(0, ProbeId);
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>The usable area, without the taskbar, of the monitor nearest to a point.</summary>

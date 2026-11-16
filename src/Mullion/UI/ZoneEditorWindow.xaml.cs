@@ -15,15 +15,25 @@ internal partial class ZoneEditorWindow : Window
     private const string DefaultHint = "Click the box and press the keys, for example Ctrl+Alt+1.";
 
     private readonly IReadOnlyList<Zone> _otherZones;
-    private readonly Action<bool> _setRecording;
+    private readonly Action<Action<Hotkey>?> _setRecorder;
+    private readonly Func<Hotkey, bool> _isOwnedElsewhere;
 
     /// <param name="zone">The zone to edit; it is copied, not changed.</param>
     /// <param name="otherZones">The other zones, to warn about a shortcut that is already taken.</param>
-    /// <param name="setRecording">Told true while the shortcut box is waiting for keys.</param>
-    public ZoneEditorWindow(Zone zone, IReadOnlyList<Zone> otherZones, Action<bool> setRecording)
+    /// <param name="setRecorder">
+    /// Starts system-wide recording while the shortcut box waits for keys, handing
+    /// each combination to the given callback; null stops it.
+    /// </param>
+    /// <param name="isOwnedElsewhere">Tells whether another program already owns a shortcut.</param>
+    public ZoneEditorWindow(
+        Zone zone,
+        IReadOnlyList<Zone> otherZones,
+        Action<Action<Hotkey>?> setRecorder,
+        Func<Hotkey, bool> isOwnedElsewhere)
     {
         _otherZones = otherZones;
-        _setRecording = setRecording;
+        _setRecorder = setRecorder;
+        _isOwnedElsewhere = isOwnedElsewhere;
 
         InitializeComponent();
 
@@ -46,9 +56,10 @@ internal partial class ZoneEditorWindow : Window
         Watch(ShortcutBox, HotkeyBox.HotkeyProperty, CheckShortcut);
 
         ShortcutBox.Rejected += reason => ShowHint(reason, isWarning: true);
-        ShortcutBox.GotKeyboardFocus += (_, _) => _setRecording(true);
-        ShortcutBox.LostKeyboardFocus += (_, _) => _setRecording(false);
-        Closed += (_, _) => _setRecording(false);
+        ShortcutBox.Accepted += CheckShortcut;
+        ShortcutBox.GotKeyboardFocus += (_, _) => _setRecorder(ShortcutBox.Accept);
+        ShortcutBox.LostKeyboardFocus += (_, _) => _setRecorder(null);
+        Closed += (_, _) => _setRecorder(null);
 
         UpdateSelectionText();
         CheckShortcut();
@@ -104,6 +115,12 @@ internal partial class ZoneEditorWindow : Window
         {
             string name = string.IsNullOrWhiteSpace(owner.Name) ? "another zone" : $"“{owner.Name}”";
             ShowHint($"{hotkey} is already used by {name}. Saving will move it to this zone.", isWarning: true);
+        }
+        else if (ShortcutBox.Hotkey is { } taken && _isOwnedElsewhere(taken))
+        {
+            ShowHint(
+                $"Another program already uses {taken}. Mullion will take it over while Mullion is running, so that program will not receive it.",
+                isWarning: true);
         }
         else
         {

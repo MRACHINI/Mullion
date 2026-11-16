@@ -6,7 +6,7 @@ namespace Mullion.UI;
 /// <summary>One line of the zone list in the settings window.</summary>
 internal sealed class ZoneRow : INotifyPropertyChanged
 {
-    private bool _shortcutRefused;
+    private bool _shortcutTakenOver;
 
     public ZoneRow(Zone zone)
     {
@@ -38,16 +38,19 @@ internal sealed class ZoneRow : INotifyPropertyChanged
 
     public string ShortcutText => Zone.Hotkey?.ToString() ?? "No shortcut";
 
-    /// <summary>True when Windows would not register the shortcut, usually because another program owns it.</summary>
-    public bool ShortcutRefused
+    /// <summary>
+    /// True when another program owns the shortcut and Mullion has taken it over,
+    /// so that program does not receive it while Mullion runs.
+    /// </summary>
+    public bool ShortcutTakenOver
     {
-        get => _shortcutRefused;
+        get => _shortcutTakenOver;
         set
         {
-            if (_shortcutRefused != value)
+            if (_shortcutTakenOver != value)
             {
-                _shortcutRefused = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShortcutRefused)));
+                _shortcutTakenOver = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShortcutTakenOver)));
             }
         }
     }

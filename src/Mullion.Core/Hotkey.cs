@@ -38,6 +38,12 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
         NamesByKey.ContainsKey(Key)
         && (Modifiers & (HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Win)) != 0;
 
+    /// <summary>True for Ctrl, Alt, Shift and the Windows key, in their left, right and generic forms.</summary>
+    public static bool IsModifierKey(int key) => key is
+        0x10 or 0x11 or 0x12 or      // Shift, Ctrl, Alt
+        0x5B or 0x5C or              // left and right Windows key
+        (>= 0xA0 and <= 0xA5);       // left and right Shift, Ctrl, Alt
+
     /// <summary>The name of a key, or null for a key that cannot be part of a shortcut.</summary>
     public static string? KeyName(int key) => NamesByKey.GetValueOrDefault(key);
 

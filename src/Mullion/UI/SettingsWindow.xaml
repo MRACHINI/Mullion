@@ -195,8 +195,8 @@
                                                         <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
                                                         <TextBlock Foreground="#FF6B7280" FontSize="12" Text="{Binding Description}" />
                                                         <TextBlock Foreground="#FFB45309" FontSize="12" TextWrapping="Wrap"
-                                                                   Text="Shortcut not available: another program is using it."
-                                                                   Visibility="{Binding ShortcutRefused, Converter={StaticResource Visible}}" />
+                                                                   Text="Shortcut taken over from another program while Mullion runs."
+                                                                   Visibility="{Binding ShortcutTakenOver, Converter={StaticResource Visible}}" />
                                                     </StackPanel>
 
                                                     <Border Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,0" Padding="8,3"

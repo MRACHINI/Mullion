@@ -23,7 +23,7 @@ public partial class App : Application
     private bool _recordingShortcut;
     private readonly ZoneRunner _zoneRunner = new();
     private IReadOnlyList<Hotkey?> _appliedHotkeys = [];
-    private IReadOnlyList<int> _shortcutProblems = [];
+    private IReadOnlyList<int> _takenOverShortcuts = [];
 
     /// <summary>The folder that holds the executable, the settings and the log.</summary>
     public static string DataDirectory => AppContext.BaseDirectory;
@@ -135,9 +135,13 @@ public partial class App : Application
             return;
         }
 
-        var viewModel = new SettingsViewModel(_settings) { SetRecording = SetRecordingShortcut };
+        var viewModel = new SettingsViewModel(_settings)
+        {
+            SetRecorder = SetShortcutRecorder,
+            IsOwnedElsewhere = IsOwnedByAnotherProgram,
+        };
         viewModel.Changed += OnSettingsChanged;
-        viewModel.SetShortcutProblems(_shortcutProblems);
+        viewModel.SetTakenOverShortcuts(_takenOverShortcuts);
         _settingsViewModel = viewModel;
 
         _settingsWindow = new SettingsWindow(viewModel);
@@ -145,7 +149,7 @@ public partial class App : Application
         {
             _settingsWindow = null;
             _settingsViewModel = null;
-            SetRecordingShortcut(false);
+            SetShortcutRecorder(null);
         };
         _settingsWindow.Show();
         _settingsWindow.Activate();
@@ -157,21 +161,41 @@ public partial class App : Application
         ApplySettings();
     }
 
-    /// <summary>While a shortcut is being recorded, existing shortcuts must not fire.</summary>
-    private void SetRecordingShortcut(bool recording)
+    /// <summary>
+    /// Starts recording a shortcut (or stops, with null). While recording, every key
+    /// combination goes to the callback and existing shortcuts do not fire.
+    /// </summary>
+    private void SetShortcutRecorder(Action<Hotkey>? captured)
     {
-        if (_recordingShortcut != recording)
-        {
-            _recordingShortcut = recording;
-            _input?.SetHotkeysSuspended(_paused || _recordingShortcut);
-        }
+        _recordingShortcut = captured is not null;
+        _input?.SetRecorder(captured);
+        _input?.SetHotkeysSuspended(_paused || _recordingShortcut);
     }
 
-    /// <summary>Windows refused these zones' shortcuts; show that in the zone list.</summary>
+    /// <summary>These zones' shortcuts belong to other programs and were taken over; show that in the zone list.</summary>
     private void OnShortcutProblems(IReadOnlyList<int> positions)
     {
-        _shortcutProblems = positions;
-        _settingsViewModel?.SetShortcutProblems(positions);
+        _takenOverShortcuts = positions;
+        _settingsViewModel?.SetTakenOverShortcuts(positions);
+    }
+
+    /// <summary>True when a program other than Mullion has registered the shortcut with Windows.</summary>
+    private bool IsOwnedByAnotherProgram(Hotkey hotkey)
+    {
+        // While Mullion's own shortcuts are registered, Windows would report those as
+        // taken too, so answer from what Mullion already knows about them.
+        if (!_paused && !_recordingShortcut)
+        {
+            for (int i = 0; i < _appliedHotkeys.Count; i++)
+            {
+                if (_appliedHotkeys[i] == hotkey)
+                {
+                    return _takenOverShortcuts.Contains(i);
+                }
+            }
+        }
+
+        return Native.IsHotkeyTaken(hotkey);
     }
 
     private void OnSettingsChanged()

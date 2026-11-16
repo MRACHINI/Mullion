@@ -135,8 +135,14 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
     public bool HasZones => Zones.Count > 0;
 
-    /// <summary>Told true while a shortcut box is waiting for keys, so existing shortcuts do not fire.</summary>
-    public Action<bool> SetRecording { get; set; } = _ => { };
+    /// <summary>
+    /// Starts system-wide recording of a shortcut, handing each combination to the
+    /// callback; null stops it. Existing shortcuts do not fire meanwhile.
+    /// </summary>
+    public Action<Action<Hotkey>?> SetRecorder { get; set; } = _ => { };
+
+    /// <summary>Tells whether another program already owns a shortcut.</summary>
+    public Func<Hotkey, bool> IsOwnedElsewhere { get; set; } = _ => false;
 
     public bool CycleMonitors
     {
@@ -188,12 +194,12 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Marks the zones, by position, whose shortcut Windows would not register.</summary>
-    public void SetShortcutProblems(IReadOnlyList<int> positions)
+    /// <summary>Marks the zones, by position, whose shortcut was taken over from another program.</summary>
+    public void SetTakenOverShortcuts(IReadOnlyList<int> positions)
     {
         for (int i = 0; i < Zones.Count; i++)
         {
-            Zones[i].ShortcutRefused = positions.Contains(i);
+            Zones[i].ShortcutTakenOver = positions.Contains(i);
         }
     }
 

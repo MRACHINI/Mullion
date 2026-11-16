@@ -35,7 +35,14 @@ internal sealed class InputThread : IGestureHost, IDisposable
 
     // Kept in fields so the garbage collector cannot free them while Windows still calls them.
     private readonly Native.LowLevelMouseProc _mouseProc;
+    private readonly Native.LowLevelMouseProc _keyboardProc;
     private readonly Native.WinEventProc _eventProc;
+
+    // The keyboard hook is installed only while it is needed: for shortcuts another
+    // program owns, and while a new shortcut is being recorded.
+    private readonly HotkeyMatcher _matcher = new();
+    private nint _keyboardHook;
+    private volatile Action<Hotkey>? _recorder;
 
     private uint _threadId;
     private nint _mouseHook;
@@ -56,7 +63,10 @@ internal sealed class InputThread : IGestureHost, IDisposable
     /// <param name="dispatcher">The user interface thread.</param>
     /// <param name="applyOverlay">Called on the user interface thread with the overlay to show, or null.</param>
     /// <param name="zonePressed">Called on a worker thread with the position of the zone whose shortcut was pressed.</param>
-    /// <param name="hotkeyProblems">Called on the user interface thread with the zones whose shortcut Windows refused.</param>
+    /// <param name="hotkeyProblems">
+    /// Called on the user interface thread with the zones whose shortcut another
+    /// program owns and Mullion has therefore taken over.
+    /// </param>
     public InputThread(
         Dispatcher dispatcher,
         Action<OverlayModel?> applyOverlay,
@@ -68,6 +78,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
         _zonePressed = zonePressed;
         _hotkeyProblems = hotkeyProblems;
         _mouseProc = MouseProc;
+        _keyboardProc = KeyboardProc;
         _eventProc = EventProc;
         Machine = new GestureMachine(this);
         _thread = new Thread(Run) { IsBackground = true, Name = "Mullion input" };
@@ -99,6 +110,17 @@ internal sealed class InputThread : IGestureHost, IDisposable
     public void SetHotkeysSuspended(bool suspended)
     {
         _hotkeysSuspended = suspended;
+        RequestHotkeyUpdate();
+    }
+
+    /// <summary>
+    /// Starts recording a shortcut: the next usable key combination is passed to
+    /// <paramref name="captured"/> on the user interface thread instead of reaching
+    /// any program. Pass null to stop.
+    /// </summary>
+    public void SetRecorder(Action<Hotkey>? captured)
+    {
+        _recorder = captured;
         RequestHotkeyUpdate();
     }
 
@@ -201,6 +223,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
             SetCancelKeyEnabled(false);
             SetTimer(false);
             UnregisterZoneHotkeys();
+            SetKeyboardHook(false);
 
             if (_mouseHook != 0)
             {
@@ -236,12 +259,18 @@ internal sealed class InputThread : IGestureHost, IDisposable
         _registeredHotkeys.Clear();
     }
 
-    /// <summary>Registers the current zone shortcuts with Windows and reports the ones it refused.</summary>
+    /// <summary>
+    /// Registers the current zone shortcuts with Windows. A shortcut Windows refuses
+    /// already belongs to another program; those are taken over with the keyboard
+    /// hook instead, and reported.
+    /// </summary>
     private void ApplyHotkeys()
     {
         UnregisterZoneHotkeys();
 
-        var problems = new List<int>();
+        var takenOver = new List<int>();
+        var hooked = new Dictionary<Hotkey, int>();
+
         if (!_hotkeysSuspended)
         {
             var hotkeys = _zoneHotkeys;
@@ -259,14 +288,141 @@ internal sealed class InputThread : IGestureHost, IDisposable
                 }
                 else
                 {
-                    // Usually another program already owns this shortcut.
-                    problems.Add(i);
-                    Log.Write($"Windows refused the shortcut {hotkey} (error {Marshal.GetLastWin32Error()}).");
+                    hooked[hotkey] = i;
+                    takenOver.Add(i);
                 }
             }
-
-            _dispatcher.BeginInvoke(() => _hotkeyProblems(problems));
         }
+
+        _matcher.SetZones(hooked);
+        _matcher.Recording = _recorder is not null;
+        SetKeyboardHook(!_matcher.IsIdle);
+
+        if (!_hotkeysSuspended)
+        {
+            _dispatcher.BeginInvoke(() => _hotkeyProblems(takenOver));
+        }
+    }
+
+    private void SetKeyboardHook(bool wanted)
+    {
+        if (wanted && _keyboardHook == 0)
+        {
+            _keyboardHook = Native.SetWindowsHookEx(
+                Native.WH_KEYBOARD_LL, _keyboardProc, Native.GetModuleHandle(null), 0);
+            if (_keyboardHook == 0)
+            {
+                Log.Write($"Could not install the keyboard hook (error {Marshal.GetLastWin32Error()}).");
+            }
+        }
+        else if (!wanted && _keyboardHook != 0)
+        {
+            Native.UnhookWindowsHookEx(_keyboardHook);
+            _keyboardHook = 0;
+        }
+    }
+
+    private nint KeyboardProc(int code, nint wParam, nint lParam)
+    {
+        if (code >= 0)
+        {
+            try
+            {
+                // KBDLLHOOKSTRUCT: key code at 0, extra info at 16.
+                int key = Marshal.ReadInt32(lParam);
+                nint extra = Marshal.ReadIntPtr(lParam, 16);
+                int message = (int)wParam;
+
+                // Keys this app injects itself are never shortcuts.
+                if (extra != InjectedMarker)
+                {
+                    if (message is Native.WM_KEYDOWN or Native.WM_SYSKEYDOWN)
+                    {
+                        var modifiers = HeldModifiers();
+                        var decision = _matcher.KeyDown(key, modifiers);
+
+                        if (decision.Captured is { } captured && _recorder is { } recorder)
+                        {
+                            _dispatcher.BeginInvoke(() => recorder(captured));
+                        }
+
+                        if (decision.Zone is { } zone)
+                        {
+                            Task.Run(() => RunZone(zone));
+                        }
+
+                        if (decision.Swallow)
+                        {
+                            MaskModifiers(modifiers);
+                            return 1;
+                        }
+                    }
+                    else if (message is Native.WM_KEYUP or Native.WM_SYSKEYUP && _matcher.KeyUp(key))
+                    {
+                        return 1;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write("Keyboard hook failed.", ex);
+            }
+        }
+
+        return Native.CallNextHookEx(0, code, wParam, lParam);
+    }
+
+    private static HotkeyModifiers HeldModifiers()
+    {
+        static bool Down(int key) => (Native.GetAsyncKeyState(key) & 0x8000) != 0;
+
+        var modifiers = HotkeyModifiers.None;
+        if (Down(Native.VK_CONTROL))
+        {
+            modifiers |= HotkeyModifiers.Ctrl;
+        }
+
+        if (Down(Native.VK_MENU))
+        {
+            modifiers |= HotkeyModifiers.Alt;
+        }
+
+        if (Down(Native.VK_SHIFT))
+        {
+            modifiers |= HotkeyModifiers.Shift;
+        }
+
+        if (Down(Native.VK_LWIN) || Down(Native.VK_RWIN))
+        {
+            modifiers |= HotkeyModifiers.Win;
+        }
+
+        return modifiers;
+    }
+
+    /// <summary>
+    /// When a combination with Alt or the Windows key is hidden, Windows sees that
+    /// modifier pressed and released alone and would open a menu bar or the Start
+    /// menu. Pressing a key that does nothing in between prevents that.
+    /// </summary>
+    private static void MaskModifiers(HotkeyModifiers modifiers)
+    {
+        if ((modifiers & (HotkeyModifiers.Alt | HotkeyModifiers.Win)) == 0)
+        {
+            return;
+        }
+
+        var inputs = new Native.INPUT[2];
+        inputs[0].Type = Native.INPUT_KEYBOARD;
+        inputs[0].Data.Keyboard = new Native.KEYBDINPUT { VirtualKey = Native.VK_UNASSIGNED, ExtraInfo = InjectedMarker };
+        inputs[1].Type = Native.INPUT_KEYBOARD;
+        inputs[1].Data.Keyboard = new Native.KEYBDINPUT
+        {
+            VirtualKey = Native.VK_UNASSIGNED,
+            Flags = Native.KEYEVENTF_KEYUP,
+            ExtraInfo = InjectedMarker,
+        };
+        Native.SendInput(2, inputs, Marshal.SizeOf<Native.INPUT>());
     }
 
     private nint MouseProc(int code, nint wParam, nint lParam)

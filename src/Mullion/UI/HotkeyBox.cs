@@ -34,6 +34,9 @@ internal sealed class HotkeyBox : TextBox
     /// <summary>Raised when the user pressed keys that cannot be used, with the reason.</summary>
     public event Action<string>? Rejected;
 
+    /// <summary>Raised when the user pressed the shortcut the box already holds.</summary>
+    public event Action? Accepted;
+
     public Hotkey? Hotkey
     {
         get => (Hotkey?)GetValue(HotkeyProperty);
@@ -91,22 +94,36 @@ internal sealed class HotkeyBox : TextBox
             return;
         }
 
-        var hotkey = new Hotkey(modifiers, KeyInterop.VirtualKeyFromKey(key));
+        Accept(new Hotkey(modifiers, KeyInterop.VirtualKeyFromKey(key)));
+    }
+
+    /// <summary>
+    /// Takes a pressed combination as the new shortcut, or explains why it cannot be
+    /// one. Also called with combinations caught system-wide, which never reach this
+    /// box as ordinary key presses because another program owns them.
+    /// </summary>
+    public void Accept(Hotkey hotkey)
+    {
         if (Core.Hotkey.KeyName(hotkey.Key) is null)
         {
             Rejected?.Invoke("That key cannot be used in a shortcut.");
-            ShowHotkey();
         }
         else if (!hotkey.IsValid)
         {
             Rejected?.Invoke("A shortcut needs Ctrl, Alt or the Windows key.");
-            ShowHotkey();
+        }
+        else if (Hotkey == hotkey)
+        {
+            // Pressing the same shortcut again changes nothing, but any earlier
+            // "cannot be used" message no longer applies.
+            Accepted?.Invoke();
         }
         else
         {
             SetCurrentValue(HotkeyProperty, hotkey);
-            ShowHotkey();
         }
+
+        ShowHotkey();
     }
 
     protected override void OnPreviewKeyUp(KeyEventArgs e)

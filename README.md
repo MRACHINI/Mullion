@@ -56,8 +56,12 @@ Open **Settings… → Zones → Add zone…**, then:
 
 You can have as many zones as you like. With more than one monitor, pressing a
 shortcut again moves the window to the same zone on the next monitor; this can
-be switched off on the Zones tab. If another program already owns a shortcut,
-the zone list says so.
+be switched off on the Zones tab.
+
+If another program has already registered the shortcut you choose, Mullion warns
+you and then takes it over: while Mullion is running, the shortcut moves the
+window and the other program does not receive it. The zone list marks such
+shortcuts. Pausing or exiting Mullion gives the shortcut back.
 
 ## Settings
 
