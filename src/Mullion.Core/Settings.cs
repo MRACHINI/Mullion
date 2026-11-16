@@ -46,6 +46,12 @@ public sealed class AppearanceSettings
 public sealed class Settings
 {
     public const int MaxGridSize = 100;
+
+    /// <summary>
+    /// The finest grid an area can be described on: the largest main grid at the
+    /// highest density the mouse wheel reaches during a placement.
+    /// </summary>
+    public const int MaxAreaGridSize = MaxGridSize * 4;
     public const int MaxGap = 200;
 
     public int Columns { get; set; } = 4;
@@ -60,6 +66,18 @@ public sealed class Settings
 
     /// <summary>Pressing a zone shortcut again moves the window to the next monitor.</summary>
     public bool CycleMonitors { get; set; } = true;
+
+    /// <summary>Rules that put a window in a zone when it opens.</summary>
+    public List<PlacementRule> Rules { get; set; } = [];
+
+    /// <summary>Whether the rules are applied when a window opens.</summary>
+    public bool ApplyRulesOnOpen { get; set; } = true;
+
+    /// <summary>
+    /// Whether placing a window with Mullion (the grid gesture, a zone shortcut or
+    /// arranging) is remembered, so the program's next window opens in the same place.
+    /// </summary>
+    public bool RememberPlacements { get; set; } = true;
 
     /// <summary>
     /// The shortcut, as text, that starts arranging the open windows one by one;
@@ -90,11 +108,18 @@ public sealed class Settings
         Zones ??= [];
         Zones.RemoveAll(zone => zone is null);
 
-        // Two zones cannot share a shortcut; the first one keeps it.
+        // Two zones cannot share a shortcut; the first one keeps it. Nor an identifier:
+        // a copied zone gets a new one.
         var used = new HashSet<Hotkey>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var zone in Zones)
         {
             zone.Normalize();
+            while (!ids.Add(zone.Id))
+            {
+                zone.Id = Zone.NewId();
+            }
+
             if (zone.Hotkey is { } hotkey && !used.Add(hotkey))
             {
                 zone.Shortcut = string.Empty;
@@ -102,7 +127,21 @@ public sealed class Settings
         }
 
         ArrangeShortcut = ArrangeHotkey is { } arrange && used.Add(arrange) ? arrange.ToString() : string.Empty;
+
+        // A rule without a program can never match. A rule whose zone was deleted is
+        // kept, so the user can see it and point it at another zone.
+        Rules ??= [];
+        Rules.RemoveAll(rule => rule is null);
+        foreach (var rule in Rules)
+        {
+            rule.Normalize();
+        }
+
+        Rules.RemoveAll(rule => rule.Program.Length == 0);
     }
+
+    /// <summary>The zone with the given identifier, or null.</summary>
+    public Zone? FindZone(string id) => Zones.FirstOrDefault(zone => zone.Id == id);
 
     /// <summary>Copies every value from another instance, keeping this object's identity.</summary>
     public void CopyFrom(Settings other)
@@ -125,6 +164,9 @@ public sealed class Settings
         Zones = other.Zones.Select(zone => zone.Clone()).ToList();
         CycleMonitors = other.CycleMonitors;
         ArrangeShortcut = other.ArrangeShortcut;
+        Rules = other.Rules.Select(rule => rule.Clone()).ToList();
+        ApplyRulesOnOpen = other.ApplyRulesOnOpen;
+        RememberPlacements = other.RememberPlacements;
         Normalize();
     }
 }

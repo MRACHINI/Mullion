@@ -32,7 +32,13 @@ public class GestureMachineTests
         }
 
         public void HideOverlay() => Overlay = null;
-        public void Place(nint window, RectI bounds, bool keepSize) => Placements.Add((window, bounds, keepSize));
+        public GridPlacement? LastGrid;
+
+        public void Place(nint window, RectI bounds, bool keepSize, GridPlacement? grid)
+        {
+            Placements.Add((window, bounds, keepSize));
+            LastGrid = grid;
+        }
         public void SetTimer(bool enabled) => TimerRunning = enabled;
     }
 
@@ -104,6 +110,35 @@ public class GestureMachineTests
         Assert.Null(host.Overlay);
         Assert.False(host.CancelKeyEnabled);
         Assert.Equal([(Window, new RectI(480, 260, 1440, 1040), false)], host.Placements);
+    }
+
+    [Fact]
+    public void A_grid_placement_reports_the_cells_that_were_selected()
+    {
+        var (machine, host) = Create();
+        StartDrag(machine);
+        machine.OnRightDown(new PointI(500, 300));
+        machine.OnMoveSizeEnd(Window);
+        machine.OnRightUp(new PointI(500, 300));
+        machine.OnWheel(new PointI(500, 300), 120);
+        machine.OnMove(new PointI(1300, 1000));
+        machine.OnLeftUp(new PointI(1300, 1000));
+
+        // The wheel doubled the 4 x 4 grid, so the cells are counted on 8 x 8.
+        Assert.Equal(new GridPlacement(Area, 8, 8, new CellSpan(2, 2, 5, 7)), host.LastGrid);
+    }
+
+    [Fact]
+    public void A_snap_move_reports_no_cells()
+    {
+        var (machine, host) = Create();
+        host.ModifierDown = true;
+        StartDrag(machine);
+        machine.OnLeftUp(new PointI(620, 330));
+        machine.OnMoveSizeEnd(Window);
+
+        Assert.Single(host.Placements);
+        Assert.Null(host.LastGrid);
     }
 
     [Fact]

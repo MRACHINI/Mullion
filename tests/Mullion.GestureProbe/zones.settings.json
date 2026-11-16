@@ -1,7 +1,9 @@
 {
+  "rememberPlacements": false,
   "arrangeShortcut": "Ctrl+Alt+Shift+F10",
   "zones": [
     {
+      "id": "right",
       "name": "Right half",
       "columns": 2,
       "rows": 1,
@@ -12,6 +14,7 @@
       "shortcut": "Ctrl+Alt+Shift+F11"
     },
     {
+      "id": "third",
       "name": "Left third",
       "columns": 3,
       "rows": 1,
@@ -22,6 +25,7 @@
       "shortcut": "Ctrl+Alt+Shift+F12"
     },
     {
+      "id": "corner",
       "name": "Top right corner",
       "columns": 4,
       "rows": 4,
@@ -30,6 +34,27 @@
       "column1": 3,
       "row1": 1,
       "shortcut": ""
+    }
+  ],
+  "rules": [
+    {
+      "program": "Mullion.GestureProbe",
+      "titleContains": "rule target",
+      "zoneId": "right",
+      "monitor": 0
+    },
+    {
+      "program": "Mullion.GestureProbe",
+      "titleContains": "second monitor",
+      "zoneId": "third",
+      "monitor": 2
+    },
+    {
+      "program": "Mullion.GestureProbe",
+      "titleContains": "switched off",
+      "zoneId": "corner",
+      "monitor": 0,
+      "enabled": false
     }
   ]
 }

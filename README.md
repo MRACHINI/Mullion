@@ -90,6 +90,52 @@ left alone. When arranging ends, the windows go back to the front-to-back order
 they had before, so only their positions have changed. You need at least one zone; the zones are what you
 click.
 
+### Rules: windows that open where you want them
+
+A rule puts a program's windows in a place as soon as they open.
+
+**Mullion remembers for you.** Whenever you place a window with Mullion (the
+grid gesture, a zone shortcut, or arranging windows), it remembers the place
+twice: for that window's exact title, and for the program as a whole. When a
+window opens:
+
+1. If its title was placed before, it returns to that title's own place.
+2. Otherwise it goes where the program's last window was put.
+
+So with several windows of one program, each one you have placed comes back to
+its own spot, and a brand-new one has somewhere sensible to open. Some programs
+give a window its title only after it has appeared; Mullion looks a second time
+a moment later, so such a window may first land in the program's place and then
+move to its own. A title that is different next time (a browser tab, another
+document) simply uses the program's place. Mullion keeps the 20 most recently
+placed titles per program.
+
+Remembered placements appear on the Rules tab with a "Remembered" label; there
+you can switch one off, delete it, forget them all, or untick **Remember where I
+place a window** to stop remembering. Editing a remembered placement turns it
+into a rule of your own, which Mullion no longer changes. Remembered titles are
+stored as plain text in `settings.json`.
+
+**You can also write rules.** A rule you wrote always wins over a remembered
+placement, and Mullion never changes it. Open **Settings… → Rules → Add rule…**
+and choose:
+
+- **Program**: its name as Task Manager shows it, for example `notepad++`. Pick
+  one of the windows that are open now to have it filled in.
+- **Title contains** (optional): part of a window title, to pick out particular
+  windows of the program. Leave it empty for all of them.
+- **Zone** and **Monitor**: where the window goes. The monitor can be the one the
+  window happens to open on, or a particular one.
+
+When several rules match, the one that asks for the most title text wins, so a
+rule for one document beats the general rule for its program. Each rule can be
+switched off with its tick box, and **Apply to open windows now** places
+everything that is already open.
+
+A window is placed once, when it first appears; if you move it afterwards,
+Mullion leaves it there. Rules need the zone they point at: deleting that zone
+leaves the rule in the list, marked, until you point it at another.
+
 ## Settings
 
 Right-click the Mullion icon in the notification area and choose **Settings…**
@@ -101,6 +147,7 @@ Right-click the Mullion icon in the notification area and choose **Settings…**
   the grid.
 - **Zones**: the saved zones and their shortcuts, and the shortcut for arranging
   windows one by one.
+- **Rules**: which programs' windows go to which zone when they open.
 - **Appearance**: colour and opacity of the tint, the grid lines and the
   selection.
 - **General**: start Mullion when you sign in to Windows.
@@ -146,14 +193,18 @@ and keyboard against a window of its own. It takes over the mouse for a few
 seconds.
 
 - Gestures: start Mullion with default settings, then run the probe.
-- Zone shortcuts and arranging: copy
+- Zone shortcuts, arranging and rules: copy
   `tests/Mullion.GestureProbe/zones.settings.json` to `settings.json` next to
-  Mullion.exe, start Mullion, then run the probe with the argument `zones` or
-  `arrange`.
+  Mullion.exe, start Mullion, then run the probe with the argument `zones`,
+  `arrange` or `rules`.
+- Remembering placements: the same with `remember.settings.json` and the
+  argument `remember`.
 
 Mullion.exe also takes a few switches for tracking down problems: `--trace`
 adds step-by-step details to `mullion.log`, and `--list-windows file.txt` writes
 the windows that arranging would go through (without their titles).
+`--render-overlay`, `--render-arrange` and `--render-settings <tab>` draw
+Mullion's own screens to a PNG file without showing them.
 
 ### Layout
 
@@ -167,9 +218,9 @@ the windows that arranging would go through (without their titles).
 
 ## Roadmap
 
-Planned, roughly in this order: a panel opened by a hotkey, swapping two
-windows, arranging all windows automatically, named scenes, remembering where a
-window belongs, program exclusions, remappable mouse input and automatic
+Planned, roughly in this order: program exclusions, remappable mouse input,
+swapping two windows, arranging all windows automatically, named scenes, a panel
+opened by a hotkey, running elevated, settings export and import, and automatic
 updates.
 
 Ideas kept for later, if they turn out to be needed:

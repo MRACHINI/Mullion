@@ -13,6 +13,12 @@ public sealed class Zone
 {
     public const int MaxNameLength = 40;
 
+    /// <summary>
+    /// A short identifier that stays the same when the zone is renamed or moved in
+    /// the list, so placement rules can refer to it. Filled in automatically.
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>Columns of the grid this zone is defined on.</summary>
@@ -50,14 +56,22 @@ public sealed class Zone
     /// <summary>Forces every value into its valid range.</summary>
     public void Normalize()
     {
+        Id = (Id ?? string.Empty).Trim();
+        if (Id.Length == 0)
+        {
+            Id = NewId();
+        }
+
         Name = (Name ?? string.Empty).Trim();
         if (Name.Length > MaxNameLength)
         {
             Name = Name[..MaxNameLength];
         }
 
-        Columns = Math.Clamp(Columns, 1, Settings.MaxGridSize);
-        Rows = Math.Clamp(Rows, 1, Settings.MaxGridSize);
+        // Wider than the settings window offers, because an area remembered from a
+        // placement made at a finer density can be on a finer grid than that.
+        Columns = Math.Clamp(Columns, 1, Settings.MaxAreaGridSize);
+        Rows = Math.Clamp(Rows, 1, Settings.MaxAreaGridSize);
 
         int c0 = Math.Clamp(Math.Min(Column0, Column1), 0, Columns - 1);
         int c1 = Math.Clamp(Math.Max(Column0, Column1), 0, Columns - 1);
@@ -69,6 +83,9 @@ public sealed class Zone
     }
 
     public Zone Clone() => (Zone)MemberwiseClone();
+
+    /// <summary>A fresh identifier: eight random hexadecimal characters.</summary>
+    public static string NewId() => Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>Where a window in this zone sits on a monitor's work area.</summary>
     public RectI BoundsOn(RectI area, int windowGap, int edgeGap) =>

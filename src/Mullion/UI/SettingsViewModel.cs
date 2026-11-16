@@ -25,6 +25,7 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         _lineColor = settings.Appearance.LineColor;
         _selectionColor = settings.Appearance.SelectionColor;
         RebuildZoneRows();
+        RebuildRuleRows();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -151,6 +152,95 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         set => Set(_settings.CycleMonitors, value, v => _settings.CycleMonitors = v);
     }
 
+    /// <summary>The placement rules, one row each.</summary>
+    public ObservableCollection<RuleRow> Rules { get; } = [];
+
+    public bool HasRules => Rules.Count > 0;
+
+    /// <summary>The zones a rule can point at.</summary>
+    public IReadOnlyList<Zone> ZoneChoices => _settings.Zones;
+
+    /// <summary>Applies the rules to every open window now.</summary>
+    public Action ApplyRulesNow { get; set; } = () => { };
+
+    /// <summary>Lists the open windows as program and title, for choosing one in the rule editor.</summary>
+    public Func<IReadOnlyList<(string Program, string Title)>> GetOpenWindows { get; set; } = () => [];
+
+    /// <summary>How many monitors are connected.</summary>
+    public Func<int> GetMonitorCount { get; set; } = () => 1;
+
+    public bool ApplyRulesOnOpen
+    {
+        get => _settings.ApplyRulesOnOpen;
+        set => Set(_settings.ApplyRulesOnOpen, value, v => _settings.ApplyRulesOnOpen = v);
+    }
+
+    public bool RememberPlacements
+    {
+        get => _settings.RememberPlacements;
+        set => Set(_settings.RememberPlacements, value, v => _settings.RememberPlacements = v);
+    }
+
+    /// <summary>True when there is at least one placement Mullion remembered by itself.</summary>
+    public bool HasRemembered => _settings.Rules.Any(rule => rule.Learned);
+
+    /// <summary>Removes every placement Mullion remembered by itself; rules the user wrote stay.</summary>
+    public void ForgetRemembered()
+    {
+        if (_settings.Rules.RemoveAll(rule => rule.Learned) > 0)
+        {
+            RulesChanged();
+        }
+    }
+
+    /// <summary>Shows the rules again after they were changed from outside this window.</summary>
+    public void RefreshRules() => RebuildRuleRows();
+
+    /// <summary>A starting point for a new rule: the first zone, on whichever monitor the window opens.</summary>
+    public PlacementRule NewRule() => new() { ZoneId = _settings.Zones.FirstOrDefault()?.Id ?? string.Empty };
+
+    public void AddRule(PlacementRule rule)
+    {
+        _settings.Rules.Add(rule);
+        RulesChanged();
+    }
+
+    public void ReplaceRule(RuleRow row, PlacementRule rule)
+    {
+        int index = _settings.Rules.IndexOf(row.Rule);
+        if (index >= 0)
+        {
+            _settings.Rules[index] = rule;
+            RulesChanged();
+        }
+    }
+
+    public void RemoveRule(RuleRow row)
+    {
+        if (_settings.Rules.Remove(row.Rule))
+        {
+            RulesChanged();
+        }
+    }
+
+    private void RulesChanged()
+    {
+        RebuildRuleRows();
+        Changed?.Invoke();
+    }
+
+    private void RebuildRuleRows()
+    {
+        Rules.Clear();
+        foreach (var rule in _settings.Rules)
+        {
+            Rules.Add(new RuleRow(rule, PlacementRules.TargetOf(rule, _settings.FindZone), () => Changed?.Invoke()));
+        }
+
+        Raise(nameof(HasRules));
+        Raise(nameof(HasRemembered));
+    }
+
     /// <summary>Starts arranging the open windows one by one.</summary>
     public Action StartArranging { get; set; } = () => { };
 
@@ -271,6 +361,9 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     private void ZonesChanged()
     {
         RebuildZoneRows();
+
+        // Rule rows show zone names, and a deleted zone leaves its rules pointing nowhere.
+        RebuildRuleRows();
         Changed?.Invoke();
     }
 
@@ -287,14 +380,16 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
     public void ResetToDefaults()
     {
-        // Zones are the user's own work, not an option; resetting keeps them.
+        // Zones and rules are the user's own work, not options; resetting keeps them.
         var defaults = new Settings
         {
             Zones = _settings.Zones,
+            Rules = _settings.Rules,
             CycleMonitors = _settings.CycleMonitors,
         };
         _settings.CopyFrom(defaults);
         RebuildZoneRows();
+        RebuildRuleRows();
         _tintColor = _settings.Appearance.TintColor;
         _lineColor = _settings.Appearance.LineColor;
         _selectionColor = _settings.Appearance.SelectionColor;

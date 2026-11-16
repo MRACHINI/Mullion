@@ -30,6 +30,12 @@ public sealed record OverlayModel(
     CellSpan? Span,
     OverlayKind Kind);
 
+/// <summary>
+/// The grid cells a window was placed on: enough to put another window in the
+/// same place later, on any monitor.
+/// </summary>
+public readonly record struct GridPlacement(RectI Area, int Columns, int Rows, CellSpan Span);
+
 /// <summary>Everything the gesture logic needs from the operating system.</summary>
 public interface IGestureHost
 {
@@ -51,7 +57,14 @@ public interface IGestureHost
     void HideOverlay();
 
     /// <summary>Moves a window so its visible bounds match <paramref name="bounds"/>.</summary>
-    void Place(nint window, RectI bounds, bool keepSize);
+    /// <param name="window">The window to move.</param>
+    /// <param name="bounds">Where its visible bounds should end up.</param>
+    /// <param name="keepSize">Move only; leave the size alone.</param>
+    /// <param name="grid">
+    /// The grid cells the user selected, when the placement came from the grid; null
+    /// for a move that only snapped to grid lines.
+    /// </param>
+    void Place(nint window, RectI bounds, bool keepSize, GridPlacement? grid);
 
     /// <summary>Starts or stops a one-shot timer that calls <see cref="GestureMachine.OnTimer"/>.</summary>
     void SetTimer(bool enabled);
@@ -92,7 +105,7 @@ public sealed class GestureMachine
     private RectI _area;
     private int _density;
     private OverlayModel? _shown;
-    private (nint Window, RectI Bounds, bool KeepSize)? _pending;
+    private (nint Window, RectI Bounds, bool KeepSize, GridPlacement? Grid)? _pending;
 
     public GestureMachine(IGestureHost host)
     {
@@ -245,7 +258,7 @@ public sealed class GestureMachine
         {
             _pending = null;
             _host.SetTimer(false);
-            _host.Place(pending.Window, pending.Bounds, pending.KeepSize);
+            _host.Place(pending.Window, pending.Bounds, pending.KeepSize, pending.Grid);
         }
     }
 
@@ -272,7 +285,7 @@ public sealed class GestureMachine
         if (_pending is { } pending)
         {
             _pending = null;
-            _host.Place(pending.Window, pending.Bounds, pending.KeepSize);
+            _host.Place(pending.Window, pending.Bounds, pending.KeepSize, pending.Grid);
         }
         else if (InGridMode && !_systemMoveEnded)
         {
@@ -334,16 +347,17 @@ public sealed class GestureMachine
         var end = layout.CellAt(_last);
         var span = anchorFixed ? CellSpan.FromCorners(layout.CellAt(_anchor), end) : CellSpan.Single(end);
         var bounds = layout.WindowBounds(span);
+        var grid = new GridPlacement(area, layout.Columns, layout.Rows, span);
 
         if (moveEnded)
         {
             _host.SetTimer(false);
-            _host.Place(target, bounds, keepSize: false);
+            _host.Place(target, bounds, keepSize: false, grid);
         }
         else
         {
             // Released before the system finished handing the window back; wait for it.
-            _pending = (target, bounds, false);
+            _pending = (target, bounds, false, grid);
             _host.SetTimer(true);
         }
     }
@@ -403,7 +417,7 @@ public sealed class GestureMachine
         {
             // The system is about to drop the window where the cursor is; move it
             // onto the grid once that has happened.
-            _pending = (window, bounds, true);
+            _pending = (window, bounds, true, null);
             _host.SetTimer(true);
         }
     }

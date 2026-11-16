@@ -44,6 +44,12 @@ internal sealed class InputThread : IGestureHost, IDisposable
     private nint _keyboardHook;
     private volatile Action<Hotkey>? _recorder;
 
+    // Watching for windows that open is switched on only while placement rules need it.
+    private readonly Native.WinEventProc _shownProc;
+    private nint _shownHook;
+    private nint _uncloakedHook;
+    private volatile bool _watchWindows;
+
     private uint _threadId;
     private nint _mouseHook;
     private nint _eventHook;
@@ -80,6 +86,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
         _mouseProc = MouseProc;
         _keyboardProc = KeyboardProc;
         _eventProc = EventProc;
+        _shownProc = ShownProc;
         Machine = new GestureMachine(this);
         _thread = new Thread(Run) { IsBackground = true, Name = "Mullion input" };
     }
@@ -110,6 +117,20 @@ internal sealed class InputThread : IGestureHost, IDisposable
     public void SetHotkeysSuspended(bool suspended)
     {
         _hotkeysSuspended = suspended;
+        RequestHotkeyUpdate();
+    }
+
+    /// <summary>
+    /// Called on this thread with each top-level window that becomes visible, while
+    /// watching is on. It runs for every such window on the system, so it must
+    /// return at once and do any real work elsewhere.
+    /// </summary>
+    public Action<nint>? WindowShown { get; set; }
+
+    /// <summary>Turns watching for newly shown windows on or off. Safe to call from any thread.</summary>
+    public void SetWindowWatch(bool enabled)
+    {
+        _watchWindows = enabled;
         RequestHotkeyUpdate();
     }
 
@@ -177,6 +198,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
             }
 
             ApplyHotkeys();
+            ApplyWindowWatch();
         }
         finally
         {
@@ -202,6 +224,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
                     else if (message.Message == ApplyHotkeysMessage)
                     {
                         ApplyHotkeys();
+                        ApplyWindowWatch();
                     }
                     else if (message.Message == Native.WM_TIMER && _timerId != 0 && (nuint)message.WParam == _timerId)
                     {
@@ -224,6 +247,8 @@ internal sealed class InputThread : IGestureHost, IDisposable
             SetTimer(false);
             UnregisterZoneHotkeys();
             SetKeyboardHook(false);
+            _watchWindows = false;
+            ApplyWindowWatch();
 
             if (_mouseHook != 0)
             {
@@ -301,6 +326,63 @@ internal sealed class InputThread : IGestureHost, IDisposable
         if (!_hotkeysSuspended)
         {
             _dispatcher.BeginInvoke(() => _hotkeyProblems(takenOver));
+        }
+    }
+
+    /// <summary>Subscribes to, or unsubscribes from, "a window was shown" notifications.</summary>
+    private void ApplyWindowWatch()
+    {
+        bool wanted = _watchWindows;
+
+        if (wanted && _shownHook == 0)
+        {
+            // Store apps exist before they appear and are "uncloaked" rather than shown.
+            uint flags = Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS;
+            _shownHook = Native.SetWinEventHook(
+                Native.EVENT_OBJECT_SHOW, Native.EVENT_OBJECT_SHOW, 0, _shownProc, 0, 0, flags);
+            _uncloakedHook = Native.SetWinEventHook(
+                Native.EVENT_OBJECT_UNCLOAKED, Native.EVENT_OBJECT_UNCLOAKED, 0, _shownProc, 0, 0, flags);
+            if (_shownHook == 0)
+            {
+                Log.Write("Could not subscribe to window-opened notifications.");
+            }
+        }
+        else if (!wanted)
+        {
+            if (_shownHook != 0)
+            {
+                Native.UnhookWinEvent(_shownHook);
+                _shownHook = 0;
+            }
+
+            if (_uncloakedHook != 0)
+            {
+                Native.UnhookWinEvent(_uncloakedHook);
+                _uncloakedHook = 0;
+            }
+        }
+    }
+
+    private void ShownProc(
+        nint hook, uint eventType, nint window, int idObject, int idChild, uint eventThread, uint eventTime)
+    {
+        // The notification arrives for every control and menu on the system; only
+        // windows themselves are of interest, and the rest is decided elsewhere.
+        if (window == 0 || idObject != Native.OBJID_WINDOW || idChild != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Native.GetAncestor(window, Native.GA_ROOT) == window)
+            {
+                WindowShown?.Invoke(window);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Window-opened notification failed.", ex);
         }
     }
 
@@ -557,7 +639,13 @@ internal sealed class InputThread : IGestureHost, IDisposable
 
     void IGestureHost.HideOverlay() => PostOverlay(null);
 
-    void IGestureHost.Place(nint window, RectI bounds, bool keepSize)
+    /// <summary>
+    /// Called on a worker thread after a window was placed on grid cells with the
+    /// mouse gesture, with the window and the cells.
+    /// </summary>
+    public Action<nint, GridPlacement>? GridPlaced { get; set; }
+
+    void IGestureHost.Place(nint window, RectI bounds, bool keepSize, GridPlacement? grid)
     {
         // Moving a window waits for the application that owns it. Do that away from
         // this thread so a slow application cannot make the mouse stutter.
@@ -566,6 +654,10 @@ internal sealed class InputThread : IGestureHost, IDisposable
             try
             {
                 WindowPlacer.Place(window, bounds, keepSize);
+                if (grid is { } cells)
+                {
+                    GridPlaced?.Invoke(window, cells);
+                }
             }
             catch (Exception ex)
             {

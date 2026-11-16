@@ -36,6 +36,12 @@ internal sealed class ArrangeSession
     public bool IsActive => _active;
 
     /// <summary>
+    /// Called on a worker thread after a window was placed in a zone, with the
+    /// window and where it went: a rule with only its zone and monitor filled in.
+    /// </summary>
+    public Action<nint, PlacementRule>? Placed { get; set; }
+
+    /// <summary>
     /// Starts arranging. Returns null on success, or a sentence explaining why
     /// there is nothing to do.
     /// </summary>
@@ -175,7 +181,9 @@ internal sealed class ArrangeSession
         }
 
         nint window = _windows[_index].Handle;
-        var bounds = _zones[zone].BoundsOn(_monitors[Math.Clamp(monitor, 0, _monitors.Count - 1)], _windowGap, _edgeGap);
+        monitor = Math.Clamp(monitor, 0, _monitors.Count - 1);
+        var bounds = _zones[zone].BoundsOn(_monitors[monitor], _windowGap, _edgeGap);
+        var placement = new PlacementRule { ZoneId = _zones[zone].Id, Monitor = monitor + 1 };
         Log.Trace($"arrange: window {_index + 1} ({Native.GetClassName(window)}) to zone {zone} on monitor {monitor}: {bounds}");
 
         // Moving a window waits for its application; keep the overlay responsive.
@@ -184,6 +192,7 @@ internal sealed class ArrangeSession
             try
             {
                 WindowPlacer.Place(window, bounds, keepSize: false);
+                Placed?.Invoke(window, placement);
             }
             catch (Exception ex)
             {

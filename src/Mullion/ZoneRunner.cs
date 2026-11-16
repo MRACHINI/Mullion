@@ -55,6 +55,8 @@ internal sealed class ZoneRunner
         int current = frame is { } bounds ? MonitorList.IndexOf(monitors, bounds) : 0;
 
         RectI target;
+        int monitor;
+        string zoneId;
         lock (_gate)
         {
             var snapshot = _snapshot;
@@ -63,7 +65,8 @@ internal sealed class ZoneRunner
                 return;
             }
 
-            target = _cycler.Plan(
+            zoneId = snapshot.Zones[zoneIndex].Id;
+            (monitor, target) = _cycler.Plan(
                 window,
                 zoneIndex,
                 snapshot.Zones[zoneIndex],
@@ -72,11 +75,18 @@ internal sealed class ZoneRunner
                 current,
                 snapshot.WindowGap,
                 snapshot.EdgeGap,
-                snapshot.Cycle).Bounds;
+                snapshot.Cycle);
         }
 
         WindowPlacer.Place(window, target, keepSize: false);
+        Placed?.Invoke(window, new PlacementRule { ZoneId = zoneId, Monitor = monitor + 1 });
     }
+
+    /// <summary>
+    /// Called after a window was placed in a zone, with the window and where it
+    /// went: a rule with only its zone and monitor filled in.
+    /// </summary>
+    public Action<nint, PlacementRule>? Placed { get; set; }
 
     private static bool CanPlace(nint window) =>
         Native.IsWindow(window)

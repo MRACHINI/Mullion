@@ -24,6 +24,8 @@ public partial class App : Application
     private readonly ZoneRunner _zoneRunner = new();
     private ArrangeSession? _arrange;
     private volatile int _arrangeHotkeyPosition = -1;
+    private readonly RuleRunner _ruleRunner = new();
+    private bool _watchingWindows;
     private IReadOnlyList<Hotkey?> _appliedHotkeys = [];
     private IReadOnlyList<int> _takenOverShortcuts = [];
 
@@ -140,13 +142,18 @@ public partial class App : Application
         _overlay = new OverlayWindow();
         _overlay.Prepare();
 
-        _arrange = new ArrangeSession(() => _settings);
+        _arrange = new ArrangeSession(() => _settings) { Placed = RememberPlacement };
+        _zoneRunner.Placed = RememberPlacement;
 
         _input = new InputThread(
             Dispatcher,
             model => _overlay.Apply(model),
             OnShortcutPressed,
-            OnShortcutProblems);
+            OnShortcutProblems)
+        {
+            WindowShown = _ruleRunner.OnWindowShown,
+            GridPlaced = RememberGridPlacement,
+        };
         ApplySettings();
 
         if (!_input.Start())
@@ -213,6 +220,15 @@ public partial class App : Application
             SetRecorder = SetShortcutRecorder,
             IsOwnedElsewhere = IsOwnedByAnotherProgram,
             StartArranging = StartArranging,
+            ApplyRulesNow = ApplyRulesNow,
+            GetMonitorCount = () => Math.Max(1, Native.GetWorkAreas().Count),
+            GetOpenWindows = () => WindowList.GetArrangeable()
+                .Select(entry => (Program: WindowList.ProgramOf(entry.Handle), entry.Title))
+                .Where(window => window.Program != "?")
+                .Distinct()
+                .OrderBy(window => window.Program, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(window => window.Title, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
         };
         viewModel.Changed += OnSettingsChanged;
         viewModel.SetTakenOverShortcuts(_takenOverShortcuts);
@@ -233,6 +249,90 @@ public partial class App : Application
     {
         _paused = paused;
         ApplySettings();
+    }
+
+    /// <summary>
+    /// A window was placed on grid cells with the mouse gesture. Called on a worker thread.
+    /// </summary>
+    private void RememberGridPlacement(nint window, GridPlacement grid)
+    {
+        var monitors = Native.GetWorkAreas();
+        var placement = new PlacementRule { Monitor = monitors.Count == 0 ? 0 : MonitorList.IndexOf(monitors, grid.Area) + 1 };
+        placement.SetArea(grid.Columns, grid.Rows, grid.Span);
+        RememberPlacement(window, placement);
+    }
+
+    /// <summary>
+    /// The user placed a window with Mullion: remember it, so that the program's
+    /// next window opens in the same place. Called on a worker thread.
+    /// </summary>
+    /// <param name="window">The window that was placed.</param>
+    /// <param name="placement">Where it went: a rule with only its target and monitor filled in.</param>
+    private void RememberPlacement(nint window, PlacementRule placement)
+    {
+        if (!_settings.RememberPlacements)
+        {
+            return;
+        }
+
+        // Mullion's own windows are not something to arrange for the user.
+        Native.GetWindowThreadProcessId(window, out uint process);
+        if (process == (uint)Environment.ProcessId)
+        {
+            return;
+        }
+
+        string program = WindowList.ProgramOf(window);
+        string title = Native.GetWindowTitle(window);
+        if (program == "?")
+        {
+            return;
+        }
+
+        // The settings belong to the user interface thread.
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_settings.RememberPlacements && PlacementRules.Remember(_settings.Rules, program, title, placement))
+            {
+                Log.Trace($"remembered: {program} on monitor {placement.Monitor}");
+                _settingsViewModel?.RefreshRules();
+                OnSettingsChanged();
+            }
+        });
+    }
+
+    /// <summary>Places every open window that has a rule, then says how many were placed.</summary>
+    private void ApplyRulesNow()
+    {
+        // Work on a copy: moving windows waits for their applications, so it runs
+        // away from the user interface, which may change the settings meanwhile.
+        var copy = new Settings();
+        copy.CopyFrom(_settings);
+
+        Task.Run(() =>
+        {
+            int placed;
+            try
+            {
+                placed = _ruleRunner.ApplyToOpenWindows(copy);
+            }
+            catch (Exception ex)
+            {
+                Log.Write("Applying the rules to open windows failed.", ex);
+                return;
+            }
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                string text = placed switch
+                {
+                    0 => "No open window matches a rule that is switched on.",
+                    1 => "Placed 1 window.",
+                    _ => $"Placed {placed} windows.",
+                };
+                MessageBox.Show(text, "Mullion", MessageBoxButton.OK, MessageBoxImage.Information);
+            });
+        });
     }
 
     /// <summary>Starts going through the open windows, or says why there is nothing to do.</summary>
@@ -361,6 +461,15 @@ public partial class App : Application
         }
 
         _zoneRunner.Update(_settings);
+
+        // Watching every window that opens costs a little, so it is on only while
+        // there are rules to apply.
+        _ruleRunner.Update(_settings, _paused);
+        if (_input is not null && _watchingWindows != _ruleRunner.IsWatching)
+        {
+            _watchingWindows = _ruleRunner.IsWatching;
+            _input.SetWindowWatch(_watchingWindows);
+        }
 
         _overlay?.SetAppearance(_settings.Appearance);
     }

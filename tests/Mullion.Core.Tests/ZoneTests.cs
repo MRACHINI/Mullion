@@ -116,9 +116,9 @@ public sealed class ZoneTests : IDisposable
         zone.Normalize();
 
         Assert.Equal(Zone.MaxNameLength, zone.Name.Length);
-        Assert.Equal(Settings.MaxGridSize, zone.Columns);
+        Assert.Equal(Settings.MaxAreaGridSize, zone.Columns);
         Assert.Equal(1, zone.Rows);
-        Assert.Equal(new CellSpan(0, 0, 99, 0), zone.Span);
+        Assert.Equal(new CellSpan(0, 0, 300, 0), zone.Span);
         Assert.Equal(string.Empty, zone.Shortcut);
         Assert.Null(zone.Hotkey);
     }

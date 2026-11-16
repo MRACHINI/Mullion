@@ -263,6 +263,107 @@
                 </DockPanel>
             </TabItem>
 
+            <TabItem Header="Rules">
+                <DockPanel Margin="16,0,16,14">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Section}" Text="Rules" />
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}"
+                               Text="A rule puts a program's windows in a place as soon as they open. Mullion adds one by itself whenever you place a window, and you can write your own." />
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Padding="16,5" Content="Add rule…" Click="OnAddRuleClick" />
+                            <Button Padding="16,5" Margin="8,0,0,0" Content="Apply to open windows now" Click="OnApplyRulesClick"
+                                    ToolTip="Places every window that is open now according to the rules." />
+                            <Button Padding="16,5" Margin="8,0,0,0" Content="Forget remembered" Click="OnForgetRememberedClick"
+                                    IsEnabled="{Binding HasRemembered}"
+                                    ToolTip="Removes the placements Mullion remembered by itself. Rules you wrote stay." />
+                        </StackPanel>
+                        <CheckBox Margin="0,14,0,0" IsChecked="{Binding ApplyRulesOnOpen}"
+                                  Content="Place windows when they open" />
+                        <CheckBox Margin="0,8,0,0" IsChecked="{Binding RememberPlacements}"
+                                  Content="Remember where I place a window, for the next time its program opens one" />
+                    </StackPanel>
+
+                    <Border BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="4" Background="White">
+                        <Grid>
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FF6B7280"
+                                       Text="No rules yet. Choose “Add rule…” to make the first one.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasRules}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Rules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#FFE5E7EB" BorderThickness="0,0,0,1" Padding="10,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <CheckBox VerticalAlignment="Center" IsChecked="{Binding Enabled}"
+                                                                  ToolTip="Switch this rule on or off"
+                                                                  AutomationProperties.Name="Rule enabled" />
+                                                        <ui:ZonePicker Width="48" Height="28" Margin="10,0,0,0" IsReadOnly="True"
+                                                                       VerticalAlignment="Center"
+                                                                       Columns="{Binding Columns}" Rows="{Binding Rows}"
+                                                                       Span="{Binding Span, Mode=OneWay}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Program}" />
+                                                            <Border Margin="8,0,0,0" Padding="6,0" CornerRadius="3" Background="#FFEFF6FF"
+                                                                    BorderBrush="#FFBFDBFE" BorderThickness="1" VerticalAlignment="Center"
+                                                                    ToolTip="Mullion remembered this from where you last placed the program's window."
+                                                                    Visibility="{Binding IsRemembered, Converter={StaticResource Visible}}">
+                                                                <TextBlock FontSize="11" Foreground="#FF1D4ED8" Text="Remembered" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Foreground="#FF6B7280" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding Condition}" />
+                                                        <TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding Target}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#FF1D4ED8" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ZoneMissing}" Value="True">
+                                                                            <Setter Property="Foreground" Value="#FFB45309" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+
+                                                    <Button Grid.Column="2" VerticalAlignment="Center" Padding="12,3" Margin="0,0,6,0"
+                                                            Content="Edit" Click="OnEditRuleClick" />
+                                                    <Button Grid.Column="3" VerticalAlignment="Center" Padding="12,3"
+                                                            Content="Delete" Click="OnDeleteRuleClick" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+
             <TabItem Header="Appearance">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="16,0,16,14">

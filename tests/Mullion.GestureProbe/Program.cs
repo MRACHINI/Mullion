@@ -38,10 +38,182 @@ try
     int h = work.Bottom - work.Top;
     Console.WriteLine($"Work area: {work.Left},{work.Top} {w} x {h}");
 
-    // -1 puts it above every other window, including other always-on-top ones.
-    Win.SetWindowPos(window, -1, work.Left + 220, work.Top + 160, 700, 450, 0);
+    // Put the test window somewhere nothing else covers it. Another always-on-top
+    // window can sit above it wherever it is raised, so try a few places.
+    (int X, int Y)[] spots =
+    [
+        (work.Left + 220, work.Top + 160),
+        (work.Left + (w * 45 / 100), work.Top + (h * 12 / 100)),
+        (work.Left + (w * 65 / 100), work.Top + (h * 20 / 100)),
+        (work.Left + (w * 10 / 100), work.Top + (h * 55 / 100)),
+        (work.Left + (w * 40 / 100), work.Top + (h * 55 / 100)),
+        (work.Left + (w * 68 / 100), work.Top + (h * 58 / 100)),
+    ];
+
+    var spot = spots[0];
+    foreach (var candidate in spots)
+    {
+        // -1 puts it above every other window, including other always-on-top ones.
+        Win.SetWindowPos(window, -1, candidate.X, candidate.Y, 700, 450, 0);
+        Thread.Sleep(250);
+        var placed = Win.Frame(window);
+        int middle = (placed.Left + placed.Right) / 2;
+        spot = candidate;
+        if (Win.RootWindowAt(middle, placed.Top + 14) == window
+            && Win.RootWindowAt(middle, (placed.Top + placed.Bottom) / 2) == window)
+        {
+            break;
+        }
+    }
+
     Win.SetForegroundWindow(window);
     Thread.Sleep(400);
+
+    // "remember" checks that placing a window is remembered: after the test window
+    // is placed with a shortcut, and then with the grid gesture, a new window of the
+    // same program opens in the same place. Mullion must be running with
+    // tests/Mullion.GestureProbe/remember.settings.json.
+    if (args.Length > 0 && args[0] == "remember")
+    {
+        const ushort F11 = 0x7A;
+        var opened = new List<TargetWindow>();
+
+        try
+        {
+            // The test window plays two different windows of the same program, by
+            // changing its title: "alpha" is placed with a shortcut, "beta" with the
+            // grid gesture.
+            target.SetTitle("Mullion probe alpha");
+            Thread.Sleep(200);
+
+            var frame = Win.Frame(window);
+            Press((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
+            Mouse.LeftUp();
+            Thread.Sleep(300);
+
+            Shortcut(F11);
+            Thread.Sleep(900);
+            var rightHalf = new Win.RECT(work.Left + (w / 2), work.Top, work.Right, work.Bottom);
+            Check("The shortcut places the test window in the right half", Win.Frame(window), rightHalf);
+
+            // Now, as "beta", place it with the grid gesture, on cells (1,1) to (2,2).
+            target.SetTitle("Mullion probe beta");
+            Thread.Sleep(200);
+            frame = Win.Frame(window);
+            var grip = Grip(frame);
+            var a = (X: work.Left + (w * 3 / 8), Y: work.Top + (h * 3 / 8));
+            var b = (X: work.Left + (w * 5 / 8), Y: work.Top + (h * 5 / 8));
+
+            Press(grip.X, grip.Y);
+            Mouse.Glide(grip.X, grip.Y, grip.X - 60, grip.Y + 40);
+            Thread.Sleep(200);
+            Mouse.RightDown();
+            Thread.Sleep(120);
+            Mouse.Glide(grip.X - 60, grip.Y + 40, a.X, a.Y);
+            Thread.Sleep(120);
+            Mouse.RightUp();
+            Thread.Sleep(120);
+            Mouse.Glide(a.X, a.Y, b.X, b.Y);
+            Thread.Sleep(150);
+            Mouse.LeftUp();
+            Thread.Sleep(900);
+
+            var cells = new Win.RECT(work.Left + (w / 4), work.Top + (h / 4), work.Left + (w * 3 / 4), work.Top + (h * 3 / 4));
+            Check("The gesture places the test window on cells (1,1) to (2,2)", Win.Frame(window), cells);
+
+            // A window with a title that was placed before returns to that title's own
+            // spot, even though the program's last placement was somewhere else.
+            var known = new TargetWindow("Mullion probe alpha", topMost: false, x: work.Left + 200, y: work.Top + 200);
+            opened.Add(known);
+            Thread.Sleep(2500);
+            Check("A window whose title was placed before opens in that title's own place", Win.Frame(known.Handle), rightHalf);
+
+            // A window with a title never seen goes where the program's last window was put.
+            var unknown = new TargetWindow("Mullion probe gamma", topMost: false, x: work.Left + 240, y: work.Top + 240);
+            opened.Add(unknown);
+            Thread.Sleep(2500);
+            Check("A window with a new title opens where the program's last window was put", Win.Frame(unknown.Handle), cells);
+
+            // A window that gets its title only after it has appeared is still matched by title.
+            var late = new TargetWindow("Loading…", topMost: false, x: work.Left + 280, y: work.Top + 280);
+            opened.Add(late);
+            Thread.Sleep(700);
+            late.SetTitle("Mullion probe alpha");
+            Thread.Sleep(3000);
+            Check("A window that gets its title late still ends up in that title's place", Win.Frame(late.Handle), rightHalf);
+        }
+        finally
+        {
+            foreach (var each in opened)
+            {
+                each.Close();
+            }
+        }
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
+
+    // "rules" checks placement rules: windows that open are put in the zone their
+    // rule names. Mullion must be running with
+    // tests/Mullion.GestureProbe/zones.settings.json. Nothing is clicked or typed.
+    if (args.Length > 0 && args[0] == "rules")
+    {
+        var monitors = Win.WorkAreas();
+        var opened = new List<TargetWindow>();
+
+        try
+        {
+            // A window whose title matches a rule goes to that rule's zone.
+            var matching = new TargetWindow("Mullion probe rule target", topMost: false, x: work.Left + 200, y: work.Top + 200);
+            opened.Add(matching);
+            Thread.Sleep(2500);
+            Check(
+                "A window that matches a rule is placed in the rule's zone when it opens",
+                Win.Frame(matching.Handle),
+                new Win.RECT(work.Left + (w / 2), work.Top, work.Right, work.Bottom));
+
+            // A window no rule matches is left alone.
+            var plain = new TargetWindow("Mullion probe plain", topMost: false, x: work.Left + 260, y: work.Top + 260);
+            opened.Add(plain);
+            Thread.Sleep(200);
+            var plainStart = Win.Frame(plain.Handle);
+            Thread.Sleep(2300);
+            Check("A window that matches no rule stays where it opened", Win.Frame(plain.Handle), plainStart);
+
+            // A rule that is switched off does nothing.
+            var off = new TargetWindow("Mullion probe switched off", topMost: false, x: work.Left + 320, y: work.Top + 320);
+            opened.Add(off);
+            Thread.Sleep(200);
+            var offStart = Win.Frame(off.Handle);
+            Thread.Sleep(2300);
+            Check("A rule that is switched off does nothing", Win.Frame(off.Handle), offStart);
+
+            // A rule that names a monitor moves the window there.
+            Console.WriteLine($"Monitors: {monitors.Count}");
+            if (monitors.Count > 1)
+            {
+                var other = monitors[1];
+                var moved = new TargetWindow("Mullion probe second monitor", topMost: false, x: monitors[0].Left + 380, y: monitors[0].Top + 380);
+                opened.Add(moved);
+                Thread.Sleep(2500);
+                Check(
+                    "A rule that names monitor 2 moves the window to that monitor",
+                    Win.Frame(moved.Handle),
+                    new Win.RECT(other.Left, other.Top, other.Left + ((other.Right - other.Left) / 3), other.Bottom));
+            }
+        }
+        finally
+        {
+            foreach (var each in opened)
+            {
+                each.Close();
+            }
+        }
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
 
     // "arrange" checks the walk-through: the shortcut starts it, clicking a zone
     // places the first window (this one, as it is on top), and the shortcut ends it.
@@ -314,7 +486,7 @@ try
 
     // 5. The move-on-grid key while dragging snaps the window to the grid without resizing it.
     {
-        Win.SetWindowPos(window, 0, work.Left + 100, work.Top + 100, 700, 450, 0x0004);
+        Win.SetWindowPos(window, 0, spot.X, spot.Y, 700, 450, 0x0004);
         Thread.Sleep(300);
         var before = Win.Frame(window);
         var grip = Grip(before);
@@ -477,6 +649,15 @@ internal sealed class TargetWindow
     }
 
     public nint Handle { get; private set; }
+
+    /// <summary>Changes the text in the title bar.</summary>
+    public void SetTitle(string title)
+    {
+        if (_form is { IsDisposed: false } form)
+        {
+            form.Invoke(() => form.Text = title);
+        }
+    }
 
     public void Close()
     {

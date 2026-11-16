@@ -30,6 +30,9 @@ internal static class Native
     public const int WM_RBUTTONUP = 0x0205;
     public const int WM_MOUSEWHEEL = 0x020A;
 
+    public const uint EVENT_OBJECT_SHOW = 0x8002;
+    public const uint EVENT_OBJECT_UNCLOAKED = 0x8018;
+    public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
     public const uint EVENT_SYSTEM_MOVESIZESTART = 0x000A;
     public const uint EVENT_SYSTEM_MOVESIZEEND = 0x000B;
     public const uint WINEVENT_OUTOFCONTEXT = 0x0000;

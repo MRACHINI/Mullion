@@ -19,6 +19,94 @@ internal partial class SettingsWindow : Window
         ArrangeBox.LostKeyboardFocus += (_, _) => _viewModel.SetRecorder(null);
     }
 
+    private void OnAddRuleClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.ZoneChoices.Count == 0)
+        {
+            MessageBox.Show(
+                this,
+                "A rule sends windows to a zone, and there are no zones yet.\n\nAdd a zone on the Zones tab first.",
+                "Mullion",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var editor = new RuleEditorWindow(
+            _viewModel.NewRule(), _viewModel.ZoneChoices, _viewModel.GetOpenWindows(), _viewModel.GetMonitorCount())
+        {
+            Owner = this,
+            Title = "New rule",
+        };
+
+        if (editor.ShowDialog() == true)
+        {
+            _viewModel.AddRule(editor.Rule);
+        }
+    }
+
+    private void OnEditRuleClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RuleRow row)
+        {
+            return;
+        }
+
+        var editor = new RuleEditorWindow(
+            row.Rule, _viewModel.ZoneChoices, _viewModel.GetOpenWindows(), _viewModel.GetMonitorCount())
+        {
+            Owner = this,
+            Title = "Edit rule",
+        };
+
+        if (editor.ShowDialog() == true)
+        {
+            _viewModel.ReplaceRule(row, editor.Rule);
+        }
+    }
+
+    private void OnDeleteRuleClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not RuleRow row)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            $"Delete the rule for “{row.Program}”?",
+            "Mullion",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No);
+
+        if (answer == MessageBoxResult.Yes)
+        {
+            _viewModel.RemoveRule(row);
+        }
+    }
+
+    private void OnApplyRulesClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ApplyRulesNow();
+    }
+
+    private void OnForgetRememberedClick(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show(
+            this,
+            "Forget every placement Mullion remembered by itself?\n\nRules you wrote yourself are kept.",
+            "Mullion",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No);
+
+        if (answer == MessageBoxResult.Yes)
+        {
+            _viewModel.ForgetRemembered();
+        }
+    }
+
     private void OnClearArrangeClick(object sender, RoutedEventArgs e)
     {
         _viewModel.ArrangeHotkey = null;
@@ -33,41 +121,36 @@ internal partial class SettingsWindow : Window
     /// Draws one tab of the settings window into a PNG file, without showing
     /// anything. Used for documentation pictures and for checking the look.
     /// </summary>
-    public static void RenderPreview(string path, Core.Settings settings, string tab)
+    /// <param name="path">The PNG file to write.</param>
+    /// <param name="settings">The settings to show.</param>
+    /// <param name="what">
+    /// A tab's name (grid, zones, rules, appearance, general), or "zone-editor" or
+    /// "rule-editor" for those dialogs, shown for the first zone or rule.
+    /// </param>
+    public static void RenderPreview(string path, Core.Settings settings, string what)
     {
         var viewModel = new SettingsViewModel(settings);
-        var window = new SettingsWindow(viewModel);
-        window.SelectTab(tab);
 
-        // Take the content out of the window so it can be laid out without being shown.
-        var root = (FrameworkElement)window.Content;
-        window.Content = null;
-        root.DataContext = viewModel;
-
-        int width = (int)window.Width - 16;
-        int height = (int)window.Height - 39;
-        root.Measure(new Size(width, height));
-        root.Arrange(new Rect(0, 0, width, height));
-
-        // Let the bindings and the list items catch up, then lay out again.
-        root.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
-        root.UpdateLayout();
-
-        var background = new System.Windows.Media.DrawingVisual();
-        using (var dc = background.RenderOpen())
+        if (string.Equals(what, "rule-editor", StringComparison.OrdinalIgnoreCase))
         {
-            dc.DrawRectangle(window.Background, null, new Rect(0, 0, width, height));
+            var rule = settings.Rules.FirstOrDefault() ?? viewModel.NewRule();
+            var editor = new RuleEditorWindow(
+                rule, settings.Zones, [("notepad++", "notes.txt - Notepad++"), ("chrome", "Mullion - Google Chrome")], 2);
+            WindowPicture.Save(editor, path, (int)editor.Width - 16);
+            return;
         }
 
-        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
-            width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-        bitmap.Render(background);
-        bitmap.Render(root);
+        if (string.Equals(what, "zone-editor", StringComparison.OrdinalIgnoreCase))
+        {
+            var zone = settings.Zones.FirstOrDefault() ?? viewModel.NewZone();
+            var editor = new ZoneEditorWindow(zone, [], _ => { }, _ => false);
+            WindowPicture.Save(editor, path, (int)editor.Width - 16);
+            return;
+        }
 
-        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
-        using var file = System.IO.File.Create(path);
-        encoder.Save(file);
+        var window = new SettingsWindow(viewModel);
+        window.SelectTab(what);
+        WindowPicture.Save(window, path, (int)window.Width - 16, (int)window.Height - 39);
     }
 
     /// <summary>Shows the tab with the given header, such as "Zones".</summary>

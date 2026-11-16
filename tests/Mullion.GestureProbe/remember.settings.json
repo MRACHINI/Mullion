@@ -1,0 +1,17 @@
+{
+  "rememberPlacements": true,
+  "zones": [
+    {
+      "id": "right",
+      "name": "Right half",
+      "columns": 2,
+      "rows": 1,
+      "column0": 1,
+      "row0": 0,
+      "column1": 1,
+      "row1": 0,
+      "shortcut": "Ctrl+Alt+Shift+F11"
+    }
+  ],
+  "rules": []
+}
