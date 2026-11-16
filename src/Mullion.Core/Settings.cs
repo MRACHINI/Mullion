@@ -45,7 +45,7 @@ public sealed class AppearanceSettings
 /// <summary>Everything the user can configure. Stored as JSON next to the executable.</summary>
 public sealed class Settings
 {
-    public const int MaxGridSize = 24;
+    public const int MaxGridSize = 100;
     public const int MaxGap = 200;
 
     public int Columns { get; set; } = 4;
@@ -54,6 +54,12 @@ public sealed class Settings
     public int EdgeGap { get; set; }
     public SnapModifier SnapMoveModifier { get; set; } = SnapModifier.Ctrl;
     public AppearanceSettings Appearance { get; set; } = new();
+
+    /// <summary>Saved zones, in the order the user arranged them.</summary>
+    public List<Zone> Zones { get; set; } = [];
+
+    /// <summary>Pressing a zone shortcut again moves the window to the next monitor.</summary>
+    public bool CycleMonitors { get; set; } = true;
 
     /// <summary>Forces every value into its valid range so a hand-edited file cannot break the app.</summary>
     public void Normalize()
@@ -69,6 +75,20 @@ public sealed class Settings
 
         Appearance ??= new AppearanceSettings();
         Appearance.Normalize();
+
+        Zones ??= [];
+        Zones.RemoveAll(zone => zone is null);
+
+        // Two zones cannot share a shortcut; the first one keeps it.
+        var used = new HashSet<Hotkey>();
+        foreach (var zone in Zones)
+        {
+            zone.Normalize();
+            if (zone.Hotkey is { } hotkey && !used.Add(hotkey))
+            {
+                zone.Shortcut = string.Empty;
+            }
+        }
     }
 
     /// <summary>Copies every value from another instance, keeping this object's identity.</summary>
@@ -89,6 +109,8 @@ public sealed class Settings
             SelectionOpacity = other.Appearance.SelectionOpacity,
             ShowSizeLabel = other.Appearance.ShowSizeLabel,
         };
+        Zones = other.Zones.Select(zone => zone.Clone()).ToList();
+        CycleMonitors = other.CycleMonitors;
         Normalize();
     }
 }

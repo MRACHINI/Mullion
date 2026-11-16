@@ -38,6 +38,8 @@ public class GridLayoutTests
     [InlineData(1920, 1040, 4, 4)]
     [InlineData(3440, 1400, 12, 3)]
     [InlineData(101, 97, 24, 24)]
+    [InlineData(2560, 1400, 100, 100)]
+    [InlineData(1366, 768, 400, 400)]
     public void Every_pixel_maps_to_the_cell_whose_bounds_contain_it(int width, int height, int columns, int rows)
     {
         var area = new RectI(-300, 20, -300 + width, 20 + height);

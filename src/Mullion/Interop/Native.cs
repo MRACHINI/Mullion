@@ -8,6 +8,7 @@ internal static class Native
 {
     public const int WH_MOUSE_LL = 14;
 
+    public const int WM_APP = 0x8000;
     public const int WM_HOTKEY = 0x0312;
     public const int WM_TIMER = 0x0113;
     public const int WM_QUIT = 0x0012;
@@ -162,7 +163,7 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostThreadMessage(uint threadId, uint message, nint wParam, nint lParam);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool RegisterHotKey(nint window, int id, uint modifiers, uint virtualKey);
 
@@ -225,6 +226,50 @@ internal static class Native
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
     public static extern nint SetWindowLongPtr(nint window, int index, nint value);
+
+    public delegate bool MonitorEnumProc(nint monitor, nint deviceContext, ref RECT rect, nint data);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumDisplayMonitors(nint deviceContext, nint clip, MonitorEnumProc proc, nint data);
+
+    [DllImport("user32.dll")]
+    public static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(nint window);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(nint window, [Out] char[] buffer, int maxCount);
+
+    /// <summary>The window class name, which identifies what kind of window it is.</summary>
+    public static string GetClassName(nint window)
+    {
+        var buffer = new char[256];
+        int length = GetClassName(window, buffer, buffer.Length);
+        return length > 0 ? new string(buffer, 0, length) : string.Empty;
+    }
+
+    /// <summary>The work areas of all monitors, ordered left to right, then top to bottom.</summary>
+    public static List<RectI> GetWorkAreas()
+    {
+        var areas = new List<RectI>();
+        MonitorEnumProc collect = (nint monitor, nint _, ref RECT _, nint _) =>
+        {
+            var info = new MONITORINFO { Size = Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(monitor, ref info))
+            {
+                areas.Add(info.Work.ToRectI());
+            }
+
+            return true;
+        };
+
+        EnumDisplayMonitors(0, 0, collect, 0);
+        GC.KeepAlive(collect);
+        return MonitorList.Sort(areas);
+    }
 
     /// <summary>The usable area, without the taskbar, of the monitor nearest to a point.</summary>
     public static RectI WorkAreaAt(PointI point)

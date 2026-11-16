@@ -17,7 +17,13 @@ internal sealed class InputThread : IGestureHost, IDisposable
     /// <summary>How long to wait for the system to report the end of a move before carrying on.</summary>
     private const uint FallbackMs = 300;
 
-    private const int CancelHotkeyId = 0x4D55;
+    private const int CancelHotkeyId = 1;
+
+    /// <summary>Zone shortcuts use this id plus the zone's position in the list.</summary>
+    private const int ZoneHotkeyBase = 0x100;
+
+    /// <summary>Posted to this thread to make it register the current set of shortcuts.</summary>
+    private const uint ApplyHotkeysMessage = Native.WM_APP + 1;
 
     /// <summary>Marks the keystroke this app injects, so it can be told apart from the user's.</summary>
     private static readonly nint InjectedMarker = 0x4D554C4C;
@@ -41,10 +47,26 @@ internal sealed class InputThread : IGestureHost, IDisposable
     private int _overlayScheduled;
     private volatile int _snapModifierKey = Native.VK_CONTROL;
 
-    public InputThread(Dispatcher dispatcher, Action<OverlayModel?> applyOverlay)
+    private readonly Action<int> _zonePressed;
+    private readonly Action<IReadOnlyList<int>> _hotkeyProblems;
+    private readonly List<int> _registeredHotkeys = [];
+    private volatile Hotkey?[] _zoneHotkeys = [];
+    private volatile bool _hotkeysSuspended;
+
+    /// <param name="dispatcher">The user interface thread.</param>
+    /// <param name="applyOverlay">Called on the user interface thread with the overlay to show, or null.</param>
+    /// <param name="zonePressed">Called on a worker thread with the position of the zone whose shortcut was pressed.</param>
+    /// <param name="hotkeyProblems">Called on the user interface thread with the zones whose shortcut Windows refused.</param>
+    public InputThread(
+        Dispatcher dispatcher,
+        Action<OverlayModel?> applyOverlay,
+        Action<int> zonePressed,
+        Action<IReadOnlyList<int>> hotkeyProblems)
     {
         _dispatcher = dispatcher;
         _applyOverlay = applyOverlay;
+        _zonePressed = zonePressed;
+        _hotkeyProblems = hotkeyProblems;
         _mouseProc = MouseProc;
         _eventProc = EventProc;
         Machine = new GestureMachine(this);
@@ -58,6 +80,35 @@ internal sealed class InputThread : IGestureHost, IDisposable
     {
         get => _snapModifierKey;
         set => _snapModifierKey = value;
+    }
+
+    /// <summary>
+    /// Sets the shortcut of each zone, by position in the zone list; null for a zone
+    /// without one. Safe to call from any thread.
+    /// </summary>
+    public void SetZoneHotkeys(IReadOnlyList<Hotkey?> hotkeys)
+    {
+        _zoneHotkeys = [.. hotkeys];
+        RequestHotkeyUpdate();
+    }
+
+    /// <summary>
+    /// Turns all zone shortcuts off or back on, for example while the app is paused
+    /// or while the user is recording a new shortcut.
+    /// </summary>
+    public void SetHotkeysSuspended(bool suspended)
+    {
+        _hotkeysSuspended = suspended;
+        RequestHotkeyUpdate();
+    }
+
+    private void RequestHotkeyUpdate()
+    {
+        // Shortcuts belong to the thread that registers them, so the work is done there.
+        if (_threadId != 0)
+        {
+            Native.PostThreadMessage(_threadId, ApplyHotkeysMessage, 0, 0);
+        }
     }
 
     /// <summary>Starts the thread and returns once the hooks are installed.</summary>
@@ -102,6 +153,8 @@ internal sealed class InputThread : IGestureHost, IDisposable
             {
                 Log.Write("Could not subscribe to window move notifications.");
             }
+
+            ApplyHotkeys();
         }
         finally
         {
@@ -117,6 +170,16 @@ internal sealed class InputThread : IGestureHost, IDisposable
                     if (message.Message == Native.WM_HOTKEY && message.WParam == CancelHotkeyId)
                     {
                         Machine.OnCancelKey();
+                    }
+                    else if (message.Message == Native.WM_HOTKEY && message.WParam >= ZoneHotkeyBase)
+                    {
+                        // Moving a window waits for its application, so do it elsewhere.
+                        int zone = (int)message.WParam - ZoneHotkeyBase;
+                        Task.Run(() => RunZone(zone));
+                    }
+                    else if (message.Message == ApplyHotkeysMessage)
+                    {
+                        ApplyHotkeys();
                     }
                     else if (message.Message == Native.WM_TIMER && _timerId != 0 && (nuint)message.WParam == _timerId)
                     {
@@ -137,6 +200,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
         {
             SetCancelKeyEnabled(false);
             SetTimer(false);
+            UnregisterZoneHotkeys();
 
             if (_mouseHook != 0)
             {
@@ -147,6 +211,61 @@ internal sealed class InputThread : IGestureHost, IDisposable
             {
                 Native.UnhookWinEvent(_eventHook);
             }
+        }
+    }
+
+    private void RunZone(int zone)
+    {
+        try
+        {
+            _zonePressed(zone);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("A zone shortcut failed.", ex);
+        }
+    }
+
+    private void UnregisterZoneHotkeys()
+    {
+        foreach (int id in _registeredHotkeys)
+        {
+            Native.UnregisterHotKey(0, id);
+        }
+
+        _registeredHotkeys.Clear();
+    }
+
+    /// <summary>Registers the current zone shortcuts with Windows and reports the ones it refused.</summary>
+    private void ApplyHotkeys()
+    {
+        UnregisterZoneHotkeys();
+
+        var problems = new List<int>();
+        if (!_hotkeysSuspended)
+        {
+            var hotkeys = _zoneHotkeys;
+            for (int i = 0; i < hotkeys.Length; i++)
+            {
+                if (hotkeys[i] is not { } hotkey)
+                {
+                    continue;
+                }
+
+                int id = ZoneHotkeyBase + i;
+                if (Native.RegisterHotKey(0, id, (uint)hotkey.Modifiers | Native.MOD_NOREPEAT, (uint)hotkey.Key))
+                {
+                    _registeredHotkeys.Add(id);
+                }
+                else
+                {
+                    // Usually another program already owns this shortcut.
+                    problems.Add(i);
+                    Log.Write($"Windows refused the shortcut {hotkey} (error {Marshal.GetLastWin32Error()}).");
+                }
+            }
+
+            _dispatcher.BeginInvoke(() => _hotkeyProblems(problems));
         }
     }
 

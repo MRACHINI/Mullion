@@ -41,18 +41,37 @@ Hold **Ctrl** while dragging a window and it snaps to the nearest grid line when
 you let go, keeping its size. The key can be changed or switched off in the
 settings.
 
+### Zones and keyboard shortcuts
+
+A zone is a part of the screen with a keyboard shortcut. Press the shortcut and
+the active window moves there, without touching the mouse.
+
+Open **Settings… → Zones → Add zone…**, then:
+
+1. Choose the zone's grid. Each zone has its own, so "left third" (3 × 1) and
+   "top-right quarter" (2 × 2) can live side by side.
+2. Drag across the picture to select the cells.
+3. Click the shortcut box and press the keys, for example `Ctrl+Alt+1`. A
+   shortcut needs Ctrl, Alt or the Windows key.
+
+You can have as many zones as you like. With more than one monitor, pressing a
+shortcut again moves the window to the same zone on the next monitor; this can
+be switched off on the Zones tab. If another program already owns a shortcut,
+the zone list says so.
+
 ## Settings
 
 Right-click the Mullion icon in the notification area and choose **Settings…**
 (or double-click the icon).
 
-- **Grid**: number of columns and rows (the same grid is used on every monitor).
-- **Margins**: the gap between neighbouring windows and the gap at the screen
-  edges. Zero means windows sit flush.
-- **Move on the grid**: the key that enables it.
+- **Grid**: number of columns and rows, from 1 to 100 each (the same grid is
+  used on every monitor); the gap between neighbouring windows and the gap at
+  the screen edges (zero means windows sit flush); and the key for moving on
+  the grid.
+- **Zones**: the saved zones and their shortcuts.
 - **Appearance**: colour and opacity of the tint, the grid lines and the
   selection.
-- **Start Mullion when I sign in to Windows**.
+- **General**: start Mullion when you sign in to Windows.
 
 The menu also has **Pause**, which switches the gestures off until you untick it.
 
@@ -91,8 +110,13 @@ dotnet run --project src/Mullion
 `build.ps1` runs the tests and writes both release executables to `dist\`.
 
 `tests/Mullion.GestureProbe` checks the app end to end by driving the real mouse
-against a window of its own. Start Mullion with default settings first; it takes
-over the mouse for a few seconds.
+and keyboard against a window of its own. It takes over the mouse for a few
+seconds.
+
+- Gestures: start Mullion with default settings, then run the probe.
+- Zone shortcuts: copy `tests/Mullion.GestureProbe/zones.settings.json` to
+  `settings.json` next to Mullion.exe, start Mullion, then run the probe with
+  the argument `zones`.
 
 ### Layout
 
@@ -106,11 +130,10 @@ over the mouse for a few seconds.
 
 ## Roadmap
 
-Planned, roughly in this order: saved zones with keyboard shortcuts, cycling a
-window across monitors, a panel opened by a hotkey, swapping two windows,
-arranging all windows, a step-through mode that offers zones for each open
-window in turn, named scenes, remembering where a window belongs, program
-exclusions, remappable input and automatic updates.
+Planned, roughly in this order: a step-through mode that offers zones for each
+open window in turn, a panel opened by a hotkey, swapping two windows, arranging
+all windows, named scenes, remembering where a window belongs, program
+exclusions, remappable mouse input and automatic updates.
 
 ## License
 

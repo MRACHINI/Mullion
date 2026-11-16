@@ -104,6 +104,17 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Grid_can_have_up_to_one_hundred_columns_and_rows()
+    {
+        SettingsStore.Save(FilePath, new Settings { Columns = 100, Rows = 100 });
+
+        var settings = SettingsStore.Load(FilePath);
+
+        Assert.Equal(100, settings.Columns);
+        Assert.Equal(100, settings.Rows);
+    }
+
+    [Fact]
     public void Null_appearance_is_replaced_with_defaults()
     {
         File.WriteAllText(FilePath, """{ "appearance": null }""");

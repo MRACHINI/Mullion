@@ -38,16 +38,72 @@ try
     int h = work.Bottom - work.Top;
     Console.WriteLine($"Work area: {work.Left},{work.Top} {w} x {h}");
 
-    Win.SetWindowPos(window, 0, work.Left + 220, work.Top + 160, 700, 450, 0x0004);
+    // -1 puts it above every other window, including other always-on-top ones.
+    Win.SetWindowPos(window, -1, work.Left + 220, work.Top + 160, 700, 450, 0);
     Win.SetForegroundWindow(window);
     Thread.Sleep(400);
+
+    // "zones" checks keyboard shortcuts instead of mouse gestures. Mullion must be
+    // running with the two zones listed in tests/Mullion.GestureProbe/zones.settings.json.
+    if (args.Length > 0 && args[0] == "zones")
+    {
+        const ushort F11 = 0x7A, F12 = 0x7B;
+        var rightHalf = new Win.RECT(work.Left + (w / 2), work.Top, work.Right, work.Bottom);
+        var leftThird = new Win.RECT(work.Left, work.Top, work.Left + (w / 3), work.Bottom);
+
+        // Click inside the window so it is the active one.
+        var frame = Win.Frame(window);
+        Press((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
+        Mouse.LeftUp();
+        Thread.Sleep(300);
+
+        Shortcut(F11);
+        Thread.Sleep(600);
+        Check("Shortcut moves the active window to the right half", Win.Frame(window), rightHalf);
+
+        Shortcut(F12);
+        Thread.Sleep(600);
+        Check("A second shortcut moves it to the left third", Win.Frame(window), leftThird);
+
+        var monitors = Win.WorkAreas();
+        Console.WriteLine($"Monitors: {monitors.Count}");
+        Shortcut(F12);
+        Thread.Sleep(600);
+        if (monitors.Count > 1)
+        {
+            int here = monitors.FindIndex(m => m.Equals(work));
+            var next = monitors[(here + 1) % monitors.Count];
+            var expected = new Win.RECT(next.Left, next.Top, next.Left + ((next.Right - next.Left) / 3), next.Bottom);
+            Check("Pressing the shortcut again moves it to the next monitor", Win.Frame(window), expected);
+
+            for (int i = 1; i < monitors.Count; i++)
+            {
+                Shortcut(F12);
+                Thread.Sleep(600);
+            }
+
+            Check("Pressing it once per monitor brings it back", Win.Frame(window), leftThird);
+        }
+        else
+        {
+            Check("Pressing the shortcut again leaves it in place on a single monitor", Win.Frame(window), leftThird);
+        }
+
+        Win.ShowWindow(window, 3);
+        Thread.Sleep(500);
+        Shortcut(F11);
+        Thread.Sleep(900);
+        Check("A maximized window is restored and placed", Win.Frame(window), rightHalf);
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
 
     // 1. An ordinary drag must behave exactly as it does without Mullion.
     {
         var before = Win.Frame(window);
         var grip = Grip(before);
-        Mouse.MoveTo(grip.X, grip.Y);
-        Mouse.LeftDown();
+        Press(grip.X, grip.Y);
         Mouse.Glide(grip.X, grip.Y, grip.X + 120, grip.Y + 70);
         Thread.Sleep(150);
         Mouse.LeftUp();
@@ -65,8 +121,7 @@ try
         var a = (X: work.Left + (w * 3 / 8), Y: work.Top + (h * 3 / 8));
         var b = (X: work.Left + (w * 5 / 8), Y: work.Top + (h * 5 / 8));
 
-        Mouse.MoveTo(grip.X, grip.Y);
-        Mouse.LeftDown();
+        Press(grip.X, grip.Y);
         Mouse.Glide(grip.X, grip.Y, grip.X + 60, grip.Y + 40);
         Thread.Sleep(200);
         Mouse.RightDown();
@@ -105,8 +160,7 @@ try
         var grip = Grip(before);
         var cell = (X: work.Left + (w / 8), Y: work.Top + (h / 8));
 
-        Mouse.MoveTo(grip.X, grip.Y);
-        Mouse.LeftDown();
+        Press(grip.X, grip.Y);
         Mouse.Glide(grip.X, grip.Y, cell.X, cell.Y);
         Thread.Sleep(200);
         Mouse.RightDown();
@@ -125,8 +179,7 @@ try
         var before = Win.Frame(window);
         var grip = Grip(before);
 
-        Mouse.MoveTo(grip.X, grip.Y);
-        Mouse.LeftDown();
+        Press(grip.X, grip.Y);
         Mouse.Glide(grip.X, grip.Y, grip.X + 300, grip.Y + 200);
         Thread.Sleep(200);
         Mouse.RightDown();
@@ -152,8 +205,7 @@ try
         int dx = work.Left + (w / 4) + 30 - before.Left;
         int dy = work.Top + (h / 4) + 20 - before.Top;
 
-        Mouse.MoveTo(grip.X, grip.Y);
-        Mouse.LeftDown();
+        Press(grip.X, grip.Y);
         Mouse.Glide(grip.X, grip.Y, grip.X + 20, grip.Y + 20);
         Keyboard.Down(snapKey);
         Thread.Sleep(100);
@@ -171,6 +223,12 @@ try
         Check("Dragging with the key held snaps to the grid and keeps the size", Win.Frame(window), new Win.RECT(x, y, x + width, y + height));
     }
 }
+catch (ProbeAbortedException ex)
+{
+    Mouse.LeftUp();
+    Console.WriteLine($"ABORTED  {ex.Message}");
+    return 100;
+}
 finally
 {
     Keyboard.Up(snapKey);
@@ -179,6 +237,34 @@ finally
 
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
 return failures;
+
+// Moves to a point and presses the left button, but only if the test window is
+// what is under the cursor. The probe must never click in anyone else's window.
+void Press(int x, int y)
+{
+    Mouse.MoveTo(x, y);
+    Thread.Sleep(60);
+    nint under = Win.RootWindowAt(x, y);
+    if (under != target.Handle)
+    {
+        throw new ProbeAbortedException(
+            $"Another window ({Win.Describe(under)}) is covering the test window at {x},{y}, so nothing was clicked.");
+    }
+
+    Mouse.LeftDown();
+}
+
+// Presses Ctrl+Alt+Shift+key, but only while the test window is the active one,
+// so a shortcut can never move some other window.
+void Shortcut(ushort key)
+{
+    if (Win.GetForegroundWindow() != target.Handle)
+    {
+        throw new ProbeAbortedException("The test window is not the active window, so no shortcut was pressed.");
+    }
+
+    Keyboard.Chord(key);
+}
 
 void Check(string name, Win.RECT actual, Win.RECT expected)
 {
@@ -198,6 +284,9 @@ void Check(string name, Win.RECT actual, Win.RECT expected)
 
 static (int X, int Y) Grip(Win.RECT frame) => (frame.Left + ((frame.Right - frame.Left) / 2), frame.Top + 14);
 
+/// <summary>Thrown when going on would mean clicking or typing into someone else's window.</summary>
+internal sealed class ProbeAbortedException(string message) : Exception(message);
+
 /// <summary>An ordinary resizable window on its own thread, standing in for any application.</summary>
 internal sealed class TargetWindow
 {
@@ -211,6 +300,8 @@ internal sealed class TargetWindow
             _form = new Form
             {
                 Text = "Mullion probe target",
+                // Always on top, so the simulated mouse can reach it whatever else is open.
+                TopMost = true,
                 StartPosition = FormStartPosition.Manual,
                 Location = new System.Drawing.Point(300, 200),
                 Size = new System.Drawing.Size(700, 450),
@@ -287,6 +378,20 @@ internal static class Keyboard
         Down(key);
         Thread.Sleep(30);
         Up(key);
+    }
+
+    /// <summary>Presses Ctrl+Alt+Shift together with a key.</summary>
+    public static void Chord(ushort key)
+    {
+        Down(0x11);
+        Down(0x12);
+        Down(0x10);
+        Thread.Sleep(30);
+        Tap(key);
+        Thread.Sleep(30);
+        Up(0x10);
+        Up(0x12);
+        Up(0x11);
     }
 
     private static void Send(ushort key, uint flags)
@@ -372,6 +477,48 @@ internal static class Win
     public static extern bool SetForegroundWindow(nint window);
 
     [DllImport("user32.dll")]
+    public static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern nint WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetAncestor(nint window, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(nint window, [Out] char[] buffer, int maxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    /// <summary>The kind of window and the program that owns it, for messages.</summary>
+    public static string Describe(nint window)
+    {
+        var buffer = new char[256];
+        int length = GetClassName(window, buffer, buffer.Length);
+        GetWindowThreadProcessId(window, out uint processId);
+        string program;
+        try
+        {
+            program = System.Diagnostics.Process.GetProcessById((int)processId).ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            program = "unknown program";
+        }
+
+        return $"{program}, class {new string(buffer, 0, Math.Max(0, length))}";
+    }
+
+    /// <summary>The top-level window under a screen point.</summary>
+    public static nint RootWindowAt(int x, int y)
+    {
+        nint window = WindowFromPoint(new POINT { X = x, Y = y });
+        nint root = window == 0 ? 0 : GetAncestor(window, 2);
+        return root == 0 ? window : root;
+    }
+
+    [DllImport("user32.dll")]
     private static extern nint MonitorFromPoint(POINT point, uint flags);
 
     [DllImport("user32.dll")]
@@ -379,6 +526,34 @@ internal static class Win
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(nint window, int attribute, out RECT value, int size);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(nint window, int command);
+
+    private delegate bool MonitorEnumProc(nint monitor, nint deviceContext, ref RECT rect, nint data);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(nint deviceContext, nint clip, MonitorEnumProc proc, nint data);
+
+    /// <summary>The work areas of all monitors, left to right, then top to bottom.</summary>
+    public static List<RECT> WorkAreas()
+    {
+        var areas = new List<RECT>();
+        MonitorEnumProc collect = (nint monitor, nint _, ref RECT _, nint _) =>
+        {
+            var info = new MONITORINFO { Size = Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(monitor, ref info))
+            {
+                areas.Add(info.Work);
+            }
+
+            return true;
+        };
+
+        EnumDisplayMonitors(0, 0, collect, 0);
+        GC.KeepAlive(collect);
+        return areas.OrderBy(a => a.Left).ThenBy(a => a.Top).ToList();
+    }
 
     /// <summary>The work area of the primary monitor.</summary>
     public static RECT WorkArea()

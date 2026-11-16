@@ -17,8 +17,13 @@ public partial class App : Application
     private InputThread? _input;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
+    private SettingsViewModel? _settingsViewModel;
     private DispatcherTimer? _saveTimer;
     private bool _paused;
+    private bool _recordingShortcut;
+    private readonly ZoneRunner _zoneRunner = new();
+    private IReadOnlyList<Hotkey?> _appliedHotkeys = [];
+    private IReadOnlyList<int> _shortcutProblems = [];
 
     /// <summary>The folder that holds the executable, the settings and the log.</summary>
     public static string DataDirectory => AppContext.BaseDirectory;
@@ -46,8 +51,12 @@ public partial class App : Application
             return;
         }
 
+        // "--second-instance" is for testing a build while another copy is running.
+        // Two copies both react to the mouse gestures, so it is not for normal use.
+        bool allowSecond = e.Args.Contains("--second-instance");
+
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\Mullion.SingleInstance", out bool isFirst);
-        if (!isFirst)
+        if (!isFirst && !allowSecond)
         {
             _singleInstance.Dispose();
             _singleInstance = null;
@@ -66,7 +75,11 @@ public partial class App : Application
         _overlay = new OverlayWindow();
         _overlay.Prepare();
 
-        _input = new InputThread(Dispatcher, model => _overlay.Apply(model));
+        _input = new InputThread(
+            Dispatcher,
+            model => _overlay.Apply(model),
+            _zoneRunner.Run,
+            OnShortcutProblems);
         ApplySettings();
 
         if (!_input.Start())
@@ -83,10 +96,16 @@ public partial class App : Application
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _saveTimer.Tick += (_, _) => SaveNow();
 
-        // "Mullion.exe --settings" opens the settings window straight away.
-        if (e.Args.Contains("--settings"))
+        // "Mullion.exe --settings" opens the settings window straight away;
+        // "--settings zones" opens it on the named tab.
+        int settingsArg = Array.IndexOf(e.Args, "--settings");
+        if (settingsArg >= 0)
         {
             OpenSettings();
+            if (settingsArg + 1 < e.Args.Length)
+            {
+                _settingsWindow?.SelectTab(e.Args[settingsArg + 1]);
+            }
         }
     }
 
@@ -116,11 +135,18 @@ public partial class App : Application
             return;
         }
 
-        var viewModel = new SettingsViewModel(_settings);
+        var viewModel = new SettingsViewModel(_settings) { SetRecording = SetRecordingShortcut };
         viewModel.Changed += OnSettingsChanged;
+        viewModel.SetShortcutProblems(_shortcutProblems);
+        _settingsViewModel = viewModel;
 
         _settingsWindow = new SettingsWindow(viewModel);
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Closed += (_, _) =>
+        {
+            _settingsWindow = null;
+            _settingsViewModel = null;
+            SetRecordingShortcut(false);
+        };
         _settingsWindow.Show();
         _settingsWindow.Activate();
     }
@@ -129,6 +155,23 @@ public partial class App : Application
     {
         _paused = paused;
         ApplySettings();
+    }
+
+    /// <summary>While a shortcut is being recorded, existing shortcuts must not fire.</summary>
+    private void SetRecordingShortcut(bool recording)
+    {
+        if (_recordingShortcut != recording)
+        {
+            _recordingShortcut = recording;
+            _input?.SetHotkeysSuspended(_paused || _recordingShortcut);
+        }
+    }
+
+    /// <summary>Windows refused these zones' shortcuts; show that in the zone list.</summary>
+    private void OnShortcutProblems(IReadOnlyList<int> positions)
+    {
+        _shortcutProblems = positions;
+        _settingsViewModel?.SetShortcutProblems(positions);
     }
 
     private void OnSettingsChanged()
@@ -162,7 +205,20 @@ public partial class App : Application
                 _settings.EdgeGap,
                 SnapMoveEnabled: _settings.SnapMoveModifier != SnapModifier.None,
                 Paused: _paused);
+
+            // Registering shortcuts is comparatively slow and this runs for every
+            // slider movement, so only do it when the shortcuts actually changed.
+            var hotkeys = _settings.Zones.Select(zone => zone.Hotkey).ToList();
+            if (!hotkeys.SequenceEqual(_appliedHotkeys))
+            {
+                _appliedHotkeys = hotkeys;
+                _input.SetZoneHotkeys(hotkeys);
+            }
+
+            _input.SetHotkeysSuspended(_paused || _recordingShortcut);
         }
+
+        _zoneRunner.Update(_settings);
 
         _overlay?.SetAppearance(_settings.Appearance);
     }
