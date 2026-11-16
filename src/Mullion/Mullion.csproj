@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Windows Forms is used only for the notification-area icon. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>Mullion</AssemblyName>
+    <RootNamespace>Mullion</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\mullion.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- DPI awareness is declared in app.manifest so it applies before any code runs. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\mullion.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mullion.Core\Mullion.Core.csproj" />
+  </ItemGroup>
+
+</Project>

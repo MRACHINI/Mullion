@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Product>Mullion</Product>
+    <Authors>MRACHINI</Authors>
+    <Copyright>Copyright (c) 2026 MRACHINI. MIT License.</Copyright>
+    <RepositoryUrl>https://github.com/MRACHINI/Mullion</RepositoryUrl>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+</Project>

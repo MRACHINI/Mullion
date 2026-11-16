@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+dist/
+
+# Editors
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Files Mullion writes next to its executable
+settings.json
+settings.json.bad
+settings.json.tmp
+mullion.log
+
+# Test results
+TestResults/
