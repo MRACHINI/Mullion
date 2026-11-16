@@ -10,7 +10,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly Forms.ToolStripMenuItem _pauseItem;
     private readonly System.Drawing.Icon? _image;
 
-    public TrayIcon(Action openSettings, Action<bool> setPaused, Action exit)
+    public TrayIcon(Action openSettings, Action arrangeWindows, Action<bool> setPaused, Action exit)
     {
         _image = LoadIcon();
 
@@ -22,6 +22,8 @@ internal sealed class TrayIcon : IDisposable
         };
 
         var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add(new Forms.ToolStripMenuItem("Arrange windows…", null, (_, _) => arrangeWindows()));
+        menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(new Forms.ToolStripMenuItem("Settings…", null, (_, _) => openSettings()));
         menu.Items.Add(_pauseItem);
         menu.Items.Add(new Forms.ToolStripSeparator());

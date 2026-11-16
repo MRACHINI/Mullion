@@ -10,6 +10,18 @@ internal static class Log
 
     public static string FilePath => Path.Combine(App.DataDirectory, "mullion.log");
 
+    /// <summary>Set by starting Mullion with "--trace"; makes <see cref="Trace"/> write to the log.</summary>
+    public static bool TraceEnabled { get; set; }
+
+    /// <summary>Writes a step-by-step detail, only when tracing was asked for. For tracking down problems.</summary>
+    public static void Trace(string message)
+    {
+        if (TraceEnabled)
+        {
+            Write("trace: " + message);
+        }
+    }
+
     public static void Write(string message, Exception? exception = null)
     {
         try

@@ -16,6 +16,7 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     private string _tintColor;
     private string _lineColor;
     private string _selectionColor;
+    private bool _arrangeShortcutTakenOver;
 
     public SettingsViewModel(Settings settings)
     {
@@ -150,6 +151,50 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         set => Set(_settings.CycleMonitors, value, v => _settings.CycleMonitors = v);
     }
 
+    /// <summary>Starts arranging the open windows one by one.</summary>
+    public Action StartArranging { get; set; } = () => { };
+
+    /// <summary>The shortcut that starts arranging windows; null for none.</summary>
+    public Hotkey? ArrangeHotkey
+    {
+        get => _settings.ArrangeHotkey;
+        set
+        {
+            if (_settings.ArrangeHotkey == value)
+            {
+                return;
+            }
+
+            // A shortcut can do one thing; giving it to this takes it from any zone.
+            if (value is { } hotkey)
+            {
+                foreach (var zone in _settings.Zones.Where(zone => zone.Hotkey == hotkey))
+                {
+                    zone.Shortcut = string.Empty;
+                }
+            }
+
+            _settings.ArrangeShortcut = value?.ToString() ?? string.Empty;
+            ArrangeShortcutTakenOver = false;
+            Raise();
+            ZonesChanged();
+        }
+    }
+
+    /// <summary>True when another program owns the arrange shortcut and Mullion has taken it over.</summary>
+    public bool ArrangeShortcutTakenOver
+    {
+        get => _arrangeShortcutTakenOver;
+        private set
+        {
+            if (_arrangeShortcutTakenOver != value)
+            {
+                _arrangeShortcutTakenOver = value;
+                Raise();
+            }
+        }
+    }
+
     /// <summary>A starting point for a new zone: the left half of the main grid.</summary>
     public Zone NewZone() => new()
     {
@@ -201,6 +246,9 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         {
             Zones[i].ShortcutTakenOver = positions.Contains(i);
         }
+
+        // The arrange shortcut is registered straight after the zones' shortcuts.
+        ArrangeShortcutTakenOver = positions.Contains(Zones.Count);
     }
 
     /// <summary>A shortcut belongs to one zone; giving it to a zone takes it from any other.</summary>

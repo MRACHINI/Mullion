@@ -43,6 +43,116 @@ try
     Win.SetForegroundWindow(window);
     Thread.Sleep(400);
 
+    // "arrange" checks the walk-through: the shortcut starts it, clicking a zone
+    // places the first window (this one, as it is on top), and the shortcut ends it.
+    // Mullion must be running with tests/Mullion.GestureProbe/zones.settings.json.
+    if (args.Length > 0 && args[0] == "arrange")
+    {
+        const ushort F10 = 0x79;
+        var rightHalf = new Win.RECT(work.Left + (w / 2), work.Top, work.Right, work.Bottom);
+
+        // A point that is inside the "Right half" zone and no smaller zone.
+        int x = work.Left + (w * 3 / 4);
+        int y = work.Top + (h * 4 / 5);
+
+        var frame = Win.Frame(window);
+        Press((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
+        Mouse.LeftUp();
+        Thread.Sleep(300);
+
+        // Which programs own the front-most windows; the test window should come first.
+        Console.WriteLine("Front-most windows: " + string.Join(", ", Win.FrontPrograms(6)));
+
+        Shortcut(F10);
+        Thread.Sleep(1500);
+        CheckThat("The shortcut shows the zones over the screen", Win.ProgramAt(x, y) == "Mullion");
+
+        if (Win.ProgramAt(x, y) == "Mullion")
+        {
+            Mouse.MoveTo(x, y);
+            Thread.Sleep(200);
+            Mouse.LeftDown();
+            Mouse.LeftUp();
+            Thread.Sleep(900);
+            Check("Clicking a zone puts the first window there", Win.Frame(window), rightHalf);
+
+            Keyboard.Chord(F10);
+            Thread.Sleep(900);
+            CheckThat("The shortcut again ends arranging", Win.ProgramAt(x, y) != "Mullion");
+        }
+
+        // With Mullion's trace log as second argument: check that the window being
+        // placed is brought in front of a window that covers it. Two ordinary
+        // windows are opened, one covering the other; the walk-through is skipped
+        // forward until the covered one is the current window.
+        if (args.Length > 1 && failures == 0)
+        {
+            var first = new TargetWindow("Mullion probe first", topMost: false, x: work.Left + 900, y: work.Top + 300);
+            var second = new TargetWindow("Mullion probe second", topMost: false, x: work.Left + 940, y: work.Top + 340);
+            Thread.Sleep(500);
+
+            try
+            {
+                // Whichever is further back is the one that must come forward.
+                bool firstIsBehind = Win.ZIndex(first.Handle) > Win.ZIndex(second.Handle);
+                nint behind = firstIsBehind ? first.Handle : second.Handle;
+                nint cover = firstIsBehind ? second.Handle : first.Handle;
+
+                frame = Win.Frame(window);
+                Press((frame.Left + frame.Right) / 2, (frame.Top + frame.Bottom) / 2);
+                Mouse.LeftUp();
+                Thread.Sleep(300);
+                int shownBefore = ProbeWindowsShown(args[1]);
+
+                Shortcut(F10);
+                Thread.Sleep(1500);
+
+                // The always-on-top test window comes first, then the two new ones
+                // front to back; the third of the probe's windows is the covered one.
+                for (int skip = 0; skip < 12 && ProbeWindowsShown(args[1]) - shownBefore < 3; skip++)
+                {
+                    if (Win.ProgramAt(x, y) != "Mullion")
+                    {
+                        break;
+                    }
+
+                    Mouse.MoveTo(x, y);
+                    Thread.Sleep(100);
+                    Mouse.RightDown();
+                    Thread.Sleep(60);
+                    Mouse.RightUp();
+                    Thread.Sleep(500);
+                }
+
+                bool reached = ProbeWindowsShown(args[1]) - shownBefore >= 3;
+                CheckThat("Skipping reaches the covered window", reached);
+                if (reached)
+                {
+                    CheckThat(
+                        "The window being placed is brought in front of the one that covered it",
+                        Win.ZIndex(behind) < Win.ZIndex(cover));
+                }
+
+                Keyboard.Chord(F10);
+                Thread.Sleep(900);
+                if (reached)
+                {
+                    CheckThat(
+                        "Ending puts the windows back in their original front-to-back order",
+                        Win.ZIndex(cover) < Win.ZIndex(behind));
+                }
+            }
+            finally
+            {
+                first.Close();
+                second.Close();
+            }
+        }
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
+
     // "zones" checks keyboard shortcuts instead of mouse gestures. Mullion must be
     // running with the two zones listed in tests/Mullion.GestureProbe/zones.settings.json.
     if (args.Length > 0 && args[0] == "zones")
@@ -109,9 +219,17 @@ try
         Mouse.LeftUp();
         Thread.Sleep(400);
 
+        // Windows itself decides exactly when a drag starts, so allow a few pixels.
+        // What matters is that the window went where the mouse went and kept its size.
         var after = Win.Frame(window);
-        Check("Ordinary drag moves the window by the drag distance",
-            after, new Win.RECT(before.Left + 120, before.Top + 70, before.Right + 120, before.Bottom + 70));
+        bool moved = Math.Abs(after.Left - (before.Left + 120)) <= 5 && Math.Abs(after.Top - (before.Top + 70)) <= 5;
+        bool sameSize = after.Right - after.Left == before.Right - before.Left && after.Bottom - after.Top == before.Bottom - before.Top;
+        CheckThat("Ordinary drag moves the window by the drag distance and keeps its size", moved && sameSize);
+        if (!(moved && sameSize))
+        {
+            Console.WriteLine($"        before {before}");
+            Console.WriteLine($"        after  {after}");
+        }
     }
 
     // 2. The grid gesture: corner in cell (1,1), stretched to cell (2,2).
@@ -266,6 +384,39 @@ void Shortcut(ushort key)
     Keyboard.Chord(key);
 }
 
+// How many times Mullion's trace log says it showed one of this probe's windows.
+static int ProbeWindowsShown(string logPath)
+{
+    if (!File.Exists(logPath))
+    {
+        return 0;
+    }
+
+    // Mullion has the log open for writing, so share it.
+    using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+    using var reader = new StreamReader(stream);
+    int count = 0;
+    while (reader.ReadLine() is { } line)
+    {
+        if (line.Contains("showing window") && line.Contains("Mullion.GestureProbe"))
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void CheckThat(string name, bool ok)
+{
+    if (!ok)
+    {
+        failures++;
+    }
+
+    Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name}");
+}
+
 void Check(string name, Win.RECT actual, Win.RECT expected)
 {
     bool ok = actual.Equals(expected);
@@ -293,17 +444,23 @@ internal sealed class TargetWindow
     private readonly ManualResetEventSlim _ready = new();
     private Form? _form;
 
-    public TargetWindow()
+    /// <param name="title">Shown in the title bar.</param>
+    /// <param name="topMost">
+    /// Always on top, so the simulated mouse can reach it whatever else is open.
+    /// </param>
+    /// <param name="x">Left edge.</param>
+    /// <param name="y">Top edge.</param>
+    public TargetWindow(string title = "Mullion probe target", bool topMost = true, int x = 300, int y = 200)
     {
         var thread = new Thread(() =>
         {
             _form = new Form
             {
-                Text = "Mullion probe target",
-                // Always on top, so the simulated mouse can reach it whatever else is open.
-                TopMost = true,
+                Text = title,
+                TopMost = topMost,
+                ShowInTaskbar = true,
                 StartPosition = FormStartPosition.Manual,
-                Location = new System.Drawing.Point(300, 200),
+                Location = new System.Drawing.Point(x, y),
                 Size = new System.Drawing.Size(700, 450),
             };
             _form.Shown += (_, _) =>
@@ -490,6 +647,83 @@ internal static class Win
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    private delegate bool EnumWindowsProc(nint window, nint data);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc proc, nint data);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowTextLength(nint window);
+
+    /// <summary>How far back a window is among all windows: 0 is the front-most.</summary>
+    public static int ZIndex(nint target)
+    {
+        int index = 0;
+        int found = int.MaxValue;
+        EnumWindowsProc find = (window, _) =>
+        {
+            if (window == target)
+            {
+                found = index;
+                return false;
+            }
+
+            index++;
+            return true;
+        };
+
+        EnumWindows(find, 0);
+        GC.KeepAlive(find);
+        return found;
+    }
+
+    /// <summary>The programs owning the front-most visible, titled windows, front first.</summary>
+    public static List<string> FrontPrograms(int count)
+    {
+        var names = new List<string>();
+        EnumWindowsProc collect = (window, _) =>
+        {
+            if (names.Count < count && IsWindowVisible(window) && !IsIconic(window) && GetWindowTextLength(window) > 0)
+            {
+                GetWindowThreadProcessId(window, out uint processId);
+                try
+                {
+                    names.Add(System.Diagnostics.Process.GetProcessById((int)processId).ProcessName);
+                }
+                catch (ArgumentException)
+                {
+                    names.Add("?");
+                }
+            }
+
+            return true;
+        };
+
+        EnumWindows(collect, 0);
+        GC.KeepAlive(collect);
+        return names;
+    }
+
+    /// <summary>The name of the program whose window is under a screen point.</summary>
+    public static string ProgramAt(int x, int y)
+    {
+        GetWindowThreadProcessId(RootWindowAt(x, y), out uint processId);
+        try
+        {
+            return System.Diagnostics.Process.GetProcessById((int)processId).ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            return string.Empty;
+        }
+    }
 
     /// <summary>The kind of window and the program that owns it, for messages.</summary>
     public static string Describe(nint window)

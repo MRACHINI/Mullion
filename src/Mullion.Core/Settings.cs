@@ -61,6 +61,17 @@ public sealed class Settings
     /// <summary>Pressing a zone shortcut again moves the window to the next monitor.</summary>
     public bool CycleMonitors { get; set; } = true;
 
+    /// <summary>
+    /// The shortcut, as text, that starts arranging the open windows one by one;
+    /// empty for none.
+    /// </summary>
+    public string ArrangeShortcut { get; set; } = string.Empty;
+
+    /// <summary>The arrange shortcut, or null when there is none or it cannot be used.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Hotkey? ArrangeHotkey =>
+        Hotkey.TryParse(ArrangeShortcut, out var hotkey) && hotkey.IsValid ? hotkey : null;
+
     /// <summary>Forces every value into its valid range so a hand-edited file cannot break the app.</summary>
     public void Normalize()
     {
@@ -89,6 +100,8 @@ public sealed class Settings
                 zone.Shortcut = string.Empty;
             }
         }
+
+        ArrangeShortcut = ArrangeHotkey is { } arrange && used.Add(arrange) ? arrange.ToString() : string.Empty;
     }
 
     /// <summary>Copies every value from another instance, keeping this object's identity.</summary>
@@ -111,6 +124,7 @@ public sealed class Settings
         };
         Zones = other.Zones.Select(zone => zone.Clone()).ToList();
         CycleMonitors = other.CycleMonitors;
+        ArrangeShortcut = other.ArrangeShortcut;
         Normalize();
     }
 }

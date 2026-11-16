@@ -282,6 +282,59 @@ internal static class Native
         return MonitorList.Sort(areas);
     }
 
+    public const int DWMWA_CLOAKED = 14;
+    public const uint GW_OWNER = 4;
+    public const long WS_EX_APPWINDOW = 0x00040000;
+    public static readonly nint HWND_TOP = 0;
+    public static readonly nint HWND_NOTOPMOST = -2;
+    public const long WS_EX_TOPMOST = 0x00000008;
+
+    public delegate bool EnumWindowsProc(nint window, nint data);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumWindows(EnumWindowsProc proc, nint data);
+
+    [DllImport("user32.dll")]
+    public static extern nint GetWindow(nint window, uint command);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(nint window, int attribute, out int value, int size);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(nint window);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(nint window, [Out] char[] buffer, int maxCount);
+
+    /// <summary>The text in a window's title bar.</summary>
+    public static string GetWindowTitle(nint window)
+    {
+        int length = GetWindowTextLength(window);
+        if (length <= 0)
+        {
+            return string.Empty;
+        }
+
+        var buffer = new char[length + 1];
+        int copied = GetWindowText(window, buffer, buffer.Length);
+        return copied > 0 ? new string(buffer, 0, copied) : string.Empty;
+    }
+
+    /// <summary>
+    /// True for a window that exists but that Windows is not showing, such as one on
+    /// another virtual desktop or a suspended Store app.
+    /// </summary>
+    public static bool IsCloaked(nint window) =>
+        DwmGetWindowAttribute(window, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0;
+
     /// <summary>
     /// True when a shortcut cannot be registered right now, which means some
     /// program already owns it. The shortcut is released again straight away.

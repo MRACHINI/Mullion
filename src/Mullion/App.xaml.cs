@@ -22,6 +22,8 @@ public partial class App : Application
     private bool _paused;
     private bool _recordingShortcut;
     private readonly ZoneRunner _zoneRunner = new();
+    private ArrangeSession? _arrange;
+    private volatile int _arrangeHotkeyPosition = -1;
     private IReadOnlyList<Hotkey?> _appliedHotkeys = [];
     private IReadOnlyList<int> _takenOverShortcuts = [];
 
@@ -34,6 +36,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // "--trace" adds step-by-step details to mullion.log, for tracking down problems.
+        Log.TraceEnabled = e.Args.Contains("--trace");
+
         // "Mullion.exe --render-overlay picture.png" draws the grid to a file and exits.
         if (e.Args.Length == 2 && e.Args[0] == "--render-overlay")
         {
@@ -45,6 +50,66 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Write("Could not render the overlay picture.", ex);
+                Shutdown(1);
+            }
+
+            return;
+        }
+
+        // "Mullion.exe --render-arrange picture.png" draws the arrange-windows screen
+        // to a file and exits.
+        if (e.Args.Length == 2 && e.Args[0] == "--render-arrange")
+        {
+            try
+            {
+                ArrangeOverlay.RenderPreview(e.Args[1], SettingsStore.Load(SettingsPath));
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                Log.Write("Could not render the arrange picture.", ex);
+                Shutdown(1);
+            }
+
+            return;
+        }
+
+        // "Mullion.exe --render-settings zones picture.png" draws one tab of the
+        // settings window to a file and exits.
+        if (e.Args.Length == 3 && e.Args[0] == "--render-settings")
+        {
+            try
+            {
+                SettingsWindow.RenderPreview(e.Args[2], SettingsStore.Load(SettingsPath), e.Args[1]);
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                Log.Write("Could not render the settings picture.", ex);
+                Shutdown(1);
+            }
+
+            return;
+        }
+
+        // "Mullion.exe --list-windows file.txt" writes the windows that "Arrange
+        // windows" would go through, front-most first, and exits. Titles are left
+        // out so the file can be shared when reporting a problem.
+        if (e.Args.Length == 2 && e.Args[0] == "--list-windows")
+        {
+            try
+            {
+                var lines = WindowList.GetArrangeable().Select(entry =>
+                {
+                    var frame = Native.GetFrameBounds(entry.Handle) ?? default;
+                    return $"{WindowList.ProgramOf(entry.Handle)} | {Native.GetClassName(entry.Handle)} | {frame.Width} x {frame.Height} at {frame.Left},{frame.Top}";
+                });
+                File.WriteAllLines(e.Args[1], lines);
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                Log.Write("Could not list the windows.", ex);
                 Shutdown(1);
             }
 
@@ -75,10 +140,12 @@ public partial class App : Application
         _overlay = new OverlayWindow();
         _overlay.Prepare();
 
+        _arrange = new ArrangeSession(() => _settings);
+
         _input = new InputThread(
             Dispatcher,
             model => _overlay.Apply(model),
-            _zoneRunner.Run,
+            OnShortcutPressed,
             OnShortcutProblems);
         ApplySettings();
 
@@ -91,10 +158,16 @@ public partial class App : Application
                 MessageBoxImage.Warning);
         }
 
-        _tray = new TrayIcon(OpenSettings, SetPaused, Shutdown);
+        _tray = new TrayIcon(OpenSettings, StartArranging, SetPaused, Shutdown);
 
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _saveTimer.Tick += (_, _) => SaveNow();
+
+        // "Mullion.exe --arrange" starts arranging windows straight away.
+        if (e.Args.Contains("--arrange"))
+        {
+            StartArranging();
+        }
 
         // "Mullion.exe --settings" opens the settings window straight away;
         // "--settings zones" opens it on the named tab.
@@ -139,6 +212,7 @@ public partial class App : Application
         {
             SetRecorder = SetShortcutRecorder,
             IsOwnedElsewhere = IsOwnedByAnotherProgram,
+            StartArranging = StartArranging,
         };
         viewModel.Changed += OnSettingsChanged;
         viewModel.SetTakenOverShortcuts(_takenOverShortcuts);
@@ -159,6 +233,47 @@ public partial class App : Application
     {
         _paused = paused;
         ApplySettings();
+    }
+
+    /// <summary>Starts going through the open windows, or says why there is nothing to do.</summary>
+    private void StartArranging()
+    {
+        if (_arrange?.Start() is { } reason)
+        {
+            MessageBox.Show(reason, "Mullion", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    /// <summary>
+    /// A registered shortcut was pressed. Called on a worker thread with the
+    /// shortcut's position: zones first, then the arrange shortcut.
+    /// </summary>
+    private void OnShortcutPressed(int position)
+    {
+        if (position == _arrangeHotkeyPosition)
+        {
+            // Pressing it again while arranging ends it.
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_arrange?.IsActive == true)
+                {
+                    _arrange.Finish();
+                }
+                else
+                {
+                    StartArranging();
+                }
+            });
+        }
+        else if (_arrange?.IsActive == true)
+        {
+            // While arranging, a zone shortcut places the window being arranged.
+            Dispatcher.BeginInvoke(() => _arrange?.PlaceByShortcut(position));
+        }
+        else
+        {
+            _zoneRunner.Run(position);
+        }
     }
 
     /// <summary>
@@ -232,7 +347,10 @@ public partial class App : Application
 
             // Registering shortcuts is comparatively slow and this runs for every
             // slider movement, so only do it when the shortcuts actually changed.
+            // The arrange shortcut is registered after the zones' shortcuts.
             var hotkeys = _settings.Zones.Select(zone => zone.Hotkey).ToList();
+            _arrangeHotkeyPosition = hotkeys.Count;
+            hotkeys.Add(_settings.ArrangeHotkey);
             if (!hotkeys.SequenceEqual(_appliedHotkeys))
             {
                 _appliedHotkeys = hotkeys;

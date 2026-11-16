@@ -181,6 +181,110 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
+    public void Arrange_shortcut_is_saved_tidied_and_loaded()
+    {
+        string path = Path.Combine(_dir, "settings.json");
+
+        SettingsStore.Save(path, new Settings { ArrangeShortcut = "alt+ctrl+w" });
+        var loaded = SettingsStore.Load(path);
+
+        Assert.Equal("Ctrl+Alt+W", loaded.ArrangeShortcut);
+        Assert.Equal(new Hotkey(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, 0x57), loaded.ArrangeHotkey);
+        Assert.DoesNotContain("\"ArrangeHotkey\"", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void Arrange_shortcut_gives_way_to_a_zone_with_the_same_shortcut()
+    {
+        var settings = new Settings { ArrangeShortcut = "Ctrl+Alt+1" };
+        settings.Zones.Add(new Zone { Name = "A", Shortcut = "Ctrl+Alt+1" });
+
+        settings.Normalize();
+
+        Assert.Equal("Ctrl+Alt+1", settings.Zones[0].Shortcut);
+        Assert.Equal(string.Empty, settings.ArrangeShortcut);
+    }
+
+    [Fact]
+    public void Unusable_arrange_shortcut_is_dropped()
+    {
+        var settings = new Settings { ArrangeShortcut = "Shift+A" };
+
+        settings.Normalize();
+
+        Assert.Equal(string.Empty, settings.ArrangeShortcut);
+        Assert.Null(settings.ArrangeHotkey);
+    }
+
+    [Fact]
+    public void Among_overlapping_zones_the_one_whose_centre_is_nearest_is_picked()
+    {
+        RectI[] zones =
+        [
+            new(0, 0, 960, 1040),      // left half, centre 480,520
+            new(0, 0, 640, 1040),      // left third, centre 320,520
+            new(960, 0, 1920, 1040),   // right half, centre 1440,520
+            new(0, 0, 640, 520),       // top of the left third, centre 320,260
+        ];
+
+        Assert.Equal(3, ZoneHitTest.Pick(zones, new PointI(100, 100)));
+        Assert.Equal(1, ZoneHitTest.Pick(zones, new PointI(100, 800)));
+        Assert.Equal(0, ZoneHitTest.Pick(zones, new PointI(800, 800)));
+        Assert.Equal(2, ZoneHitTest.Pick(zones, new PointI(1500, 100)));
+
+        // Inside both the half and the third, but next to the half's centre.
+        Assert.Equal(0, ZoneHitTest.Pick(zones, new PointI(470, 510)));
+
+        // Inside the half, the third and the top of the third; each wins near its own centre.
+        Assert.Equal(1, ZoneHitTest.Pick(zones, new PointI(320, 500)));
+        Assert.Equal(3, ZoneHitTest.Pick(zones, new PointI(320, 300)));
+    }
+
+    [Fact]
+    public void Every_zone_is_picked_at_its_own_centre()
+    {
+        RectI[] zones =
+        [
+            new(0, 0, 1920, 1040),
+            new(0, 0, 960, 1040),
+            new(0, 0, 640, 1040),
+            new(0, 0, 640, 520),
+            new(480, 0, 1440, 520),
+            new(1280, 520, 1920, 1040),
+        ];
+
+        for (int i = 0; i < zones.Length; i++)
+        {
+            var centre = new PointI((zones[i].Left + zones[i].Right) / 2, (zones[i].Top + zones[i].Bottom) / 2);
+            Assert.Equal(i, ZoneHitTest.Pick(zones, centre));
+        }
+    }
+
+    [Fact]
+    public void A_zone_centred_inside_another_wins_where_they_overlap()
+    {
+        RectI[] zones =
+        [
+            new(0, 0, 1920, 1040),     // whole screen
+            new(480, 260, 1440, 780),  // centred in it
+        ];
+
+        Assert.Equal(1, ZoneHitTest.Pick(zones, new PointI(960, 520)));
+        Assert.Equal(1, ZoneHitTest.Pick(zones, new PointI(500, 300)));
+        Assert.Equal(0, ZoneHitTest.Pick(zones, new PointI(100, 100)));
+    }
+
+    [Fact]
+    public void A_point_outside_every_zone_picks_nothing()
+    {
+        RectI[] zones = [new(0, 0, 960, 1040)];
+
+        Assert.Equal(-1, ZoneHitTest.Pick(zones, new PointI(1000, 100)));
+        Assert.Equal(-1, ZoneHitTest.Pick(zones, new PointI(960, 100)));
+        Assert.Equal(-1, ZoneHitTest.Pick([], new PointI(0, 0)));
+    }
+
+    [Fact]
     public void Monitors_are_ordered_left_to_right()
     {
         var sorted = MonitorList.Sort([Right, default, Left]);

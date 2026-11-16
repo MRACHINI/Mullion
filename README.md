@@ -63,6 +63,33 @@ you and then takes it over: while Mullion is running, the shortcut moves the
 window and the other program does not receive it. The zone list marks such
 shortcuts. Pausing or exiting Mullion gives the shortcut back.
 
+### Arrange windows one by one
+
+When many windows need a place, let Mullion walk you through them. Choose
+**Arrange windows…** from the tray icon's menu, or give it a shortcut under
+**Settings… → Zones**.
+
+![Arranging windows: the zones are drawn over the screen and the current window is highlighted](docs/arrange.png)
+
+Mullion brings the first open window to the front and makes it unmistakable: the
+rest of the screen goes dark, and the window keeps its brightness, gets an amber
+glow that flashes for a moment, and carries a "placing this window" tag. Your
+zones are drawn on every monitor. Then, for each window in turn:
+
+| Input | Effect |
+|---|---|
+| Click a zone | Puts the window there (on the monitor you clicked) and moves on |
+| A zone's own shortcut | Does the same from the keyboard |
+| Right-click, Space or **Skip** | Leaves the window where it is and moves on |
+| Left arrow or **Back** | Goes back to the previous window |
+| Esc, **Done** or the arrange shortcut again | Finishes |
+
+Where zones overlap, the one whose centre is nearest the mouse is chosen, so
+moving towards the middle of a zone always selects it. Minimized windows are
+left alone. When arranging ends, the windows go back to the front-to-back order
+they had before, so only their positions have changed. You need at least one zone; the zones are what you
+click.
+
 ## Settings
 
 Right-click the Mullion icon in the notification area and choose **Settings…**
@@ -72,7 +99,8 @@ Right-click the Mullion icon in the notification area and choose **Settings…**
   used on every monitor); the gap between neighbouring windows and the gap at
   the screen edges (zero means windows sit flush); and the key for moving on
   the grid.
-- **Zones**: the saved zones and their shortcuts.
+- **Zones**: the saved zones and their shortcuts, and the shortcut for arranging
+  windows one by one.
 - **Appearance**: colour and opacity of the tint, the grid lines and the
   selection.
 - **General**: start Mullion when you sign in to Windows.
@@ -118,9 +146,14 @@ and keyboard against a window of its own. It takes over the mouse for a few
 seconds.
 
 - Gestures: start Mullion with default settings, then run the probe.
-- Zone shortcuts: copy `tests/Mullion.GestureProbe/zones.settings.json` to
-  `settings.json` next to Mullion.exe, start Mullion, then run the probe with
-  the argument `zones`.
+- Zone shortcuts and arranging: copy
+  `tests/Mullion.GestureProbe/zones.settings.json` to `settings.json` next to
+  Mullion.exe, start Mullion, then run the probe with the argument `zones` or
+  `arrange`.
+
+Mullion.exe also takes a few switches for tracking down problems: `--trace`
+adds step-by-step details to `mullion.log`, and `--list-windows file.txt` writes
+the windows that arranging would go through (without their titles).
 
 ### Layout
 
@@ -134,10 +167,15 @@ seconds.
 
 ## Roadmap
 
-Planned, roughly in this order: a step-through mode that offers zones for each
-open window in turn, a panel opened by a hotkey, swapping two windows, arranging
-all windows, named scenes, remembering where a window belongs, program
-exclusions, remappable mouse input and automatic updates.
+Planned, roughly in this order: a panel opened by a hotkey, swapping two
+windows, arranging all windows automatically, named scenes, remembering where a
+window belongs, program exclusions, remappable mouse input and automatic
+updates.
+
+Ideas kept for later, if they turn out to be needed:
+
+- A live thumbnail of the current window in the banner while arranging windows,
+  in case the highlight alone is not clear enough.
 
 ## License
 

@@ -6,6 +6,27 @@ namespace Mullion.Interop;
 internal static class WindowPlacer
 {
     /// <summary>
+    /// Puts a window in front of all ordinary windows without giving it the keyboard.
+    /// </summary>
+    public static void BringToFront(nint window)
+    {
+        const uint Flags = Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE;
+
+        bool alwaysOnTop = (Native.GetWindowLongPtr(window, Native.GWL_EXSTYLE) & Native.WS_EX_TOPMOST) != 0;
+        if (alwaysOnTop)
+        {
+            Native.SetWindowPos(window, Native.HWND_TOP, 0, 0, 0, 0, Flags);
+            return;
+        }
+
+        // Simply asking for "top" is often ignored for another program's window.
+        // Making it always-on-top for a moment and then ordinary again is not, and
+        // leaves it in front of every other ordinary window.
+        Native.SetWindowPos(window, Native.HWND_TOPMOST, 0, 0, 0, 0, Flags);
+        Native.SetWindowPos(window, Native.HWND_NOTOPMOST, 0, 0, 0, 0, Flags);
+    }
+
+    /// <summary>
     /// Moves a window so that its visible bounds match <paramref name="target"/>.
     /// With <paramref name="keepSize"/>, or for a window that cannot be resized,
     /// only the position changes.

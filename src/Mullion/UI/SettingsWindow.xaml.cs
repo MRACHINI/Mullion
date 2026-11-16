@@ -12,6 +12,62 @@ internal partial class SettingsWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
         InitializeComponent();
+
+        // While the box waits for keys, record system-wide so that combinations
+        // another program owns can be seen too.
+        ArrangeBox.GotKeyboardFocus += (_, _) => _viewModel.SetRecorder(ArrangeBox.Accept);
+        ArrangeBox.LostKeyboardFocus += (_, _) => _viewModel.SetRecorder(null);
+    }
+
+    private void OnClearArrangeClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ArrangeHotkey = null;
+    }
+
+    private void OnStartArrangeClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.StartArranging();
+    }
+
+    /// <summary>
+    /// Draws one tab of the settings window into a PNG file, without showing
+    /// anything. Used for documentation pictures and for checking the look.
+    /// </summary>
+    public static void RenderPreview(string path, Core.Settings settings, string tab)
+    {
+        var viewModel = new SettingsViewModel(settings);
+        var window = new SettingsWindow(viewModel);
+        window.SelectTab(tab);
+
+        // Take the content out of the window so it can be laid out without being shown.
+        var root = (FrameworkElement)window.Content;
+        window.Content = null;
+        root.DataContext = viewModel;
+
+        int width = (int)window.Width - 16;
+        int height = (int)window.Height - 39;
+        root.Measure(new Size(width, height));
+        root.Arrange(new Rect(0, 0, width, height));
+
+        // Let the bindings and the list items catch up, then lay out again.
+        root.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+        root.UpdateLayout();
+
+        var background = new System.Windows.Media.DrawingVisual();
+        using (var dc = background.RenderOpen())
+        {
+            dc.DrawRectangle(window.Background, null, new Rect(0, 0, width, height));
+        }
+
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(background);
+        bitmap.Render(root);
+
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
     }
 
     /// <summary>Shows the tab with the given header, such as "Zones".</summary>

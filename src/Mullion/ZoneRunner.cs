@@ -6,18 +6,6 @@ namespace Mullion;
 /// <summary>Carries out a zone shortcut: moves the active window into the zone.</summary>
 internal sealed class ZoneRunner
 {
-    /// <summary>Windows that belong to the desktop and taskbar, which must stay where they are.</summary>
-    private static readonly HashSet<string> ShellClasses = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Progman",
-        "WorkerW",
-        "Shell_TrayWnd",
-        "Shell_SecondaryTrayWnd",
-        "Windows.UI.Core.CoreWindow",
-        "XamlExplorerHostIslandWindow",
-        "MultitaskingViewFrame",
-    };
-
     private sealed record Snapshot(IReadOnlyList<Zone> Zones, int WindowGap, int EdgeGap, bool Cycle);
 
     private readonly object _gate = new();
@@ -94,5 +82,5 @@ internal sealed class ZoneRunner
         Native.IsWindow(window)
         && Native.IsWindowVisible(window)
         && !Native.IsIconic(window)
-        && !ShellClasses.Contains(Native.GetClassName(window));
+        && !WindowList.IsShellWindow(window);
 }
