@@ -104,6 +104,61 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Grid_button_and_cancel_key_default_to_right_and_Esc()
+    {
+        var settings = SettingsStore.Load(FilePath);
+
+        Assert.Equal(TriggerButton.Right, settings.GridButton);
+        Assert.Equal("Esc", settings.CancelKey);
+        Assert.Equal(0x1B, settings.CancelKeyCode);
+    }
+
+    [Fact]
+    public void Grid_button_and_cancel_key_are_saved_and_loaded()
+    {
+        SettingsStore.Save(FilePath, new Settings { GridButton = TriggerButton.Middle, CancelKey = "q" });
+
+        var loaded = SettingsStore.Load(FilePath);
+
+        Assert.Equal(TriggerButton.Middle, loaded.GridButton);
+        Assert.Equal("Q", loaded.CancelKey);
+        Assert.Equal(0x51, loaded.CancelKeyCode);
+        Assert.Contains("\"Middle\"", File.ReadAllText(FilePath));
+    }
+
+    [Theory]
+    [InlineData("escape", "Esc", 0x1B)]
+    [InlineData(" backspace ", "Backspace", 0x08)]
+    [InlineData("f2", "F2", 0x71)]
+    [InlineData("space", "Space", 0x20)]
+    [InlineData("Ctrl+Q", "Esc", 0x1B)]
+    [InlineData("nonsense", "Esc", 0x1B)]
+    [InlineData("", "Esc", 0x1B)]
+    [InlineData(null, "Esc", 0x1B)]
+    public void Cancel_key_is_one_known_key_or_falls_back_to_Esc(string? written, string expected, int code)
+    {
+        var settings = new Settings { CancelKey = written! };
+
+        settings.Normalize();
+
+        Assert.Equal(expected, settings.CancelKey);
+        Assert.Equal(code, settings.CancelKeyCode);
+    }
+
+    [Fact]
+    public void Every_single_key_name_reads_back_as_the_same_key()
+    {
+        for (int key = 0; key < 256; key++)
+        {
+            if (Hotkey.SingleKeyName(key) is { } name)
+            {
+                Assert.True(Hotkey.TryParseSingleKey(name, out int parsed), name);
+                Assert.Equal(key, parsed);
+            }
+        }
+    }
+
+    [Fact]
     public void Grid_can_have_up_to_one_hundred_columns_and_rows()
     {
         SettingsStore.Save(FilePath, new Settings { Columns = 100, Rows = 100 });

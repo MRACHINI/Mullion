@@ -72,6 +72,68 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         set => Set(_settings.SnapMoveModifier, value, v => _settings.SnapMoveModifier = v);
     }
 
+    /// <summary>The mouse buttons that can show the grid, with the words shown for each.</summary>
+    public static IReadOnlyList<KeyValuePair<TriggerButton, string>> GridButtons { get; } =
+    [
+        new(TriggerButton.Right, "Right button"),
+        new(TriggerButton.Middle, "Middle button (wheel click)"),
+        new(TriggerButton.Back, "Back button (side)"),
+        new(TriggerButton.Forward, "Forward button (side)"),
+    ];
+
+    public TriggerButton GridButton
+    {
+        get => _settings.GridButton;
+        set
+        {
+            if (_settings.GridButton != value)
+            {
+                _settings.GridButton = value;
+                Raise();
+                Raise(nameof(GestureHint));
+                Changed?.Invoke();
+            }
+        }
+    }
+
+    /// <summary>The key that abandons the grid, as a shortcut without modifier keys.</summary>
+    public Hotkey? CancelHotkey
+    {
+        get => new Hotkey(HotkeyModifiers.None, _settings.CancelKeyCode);
+        set
+        {
+            // The box cannot be emptied; anything that is not a usable key is ignored.
+            if (value is { } key
+                && Hotkey.SingleKeyName(key.Key) is { } name
+                && key.Key != _settings.CancelKeyCode)
+            {
+                _settings.CancelKey = name;
+                Raise();
+                Raise(nameof(GestureHint));
+                Changed?.Invoke();
+            }
+        }
+    }
+
+    /// <summary>How the grid gesture works with the button and key chosen now.</summary>
+    public string GestureHint
+    {
+        get
+        {
+            var (press, button) = _settings.GridButton switch
+            {
+                TriggerButton.Middle => ("press the middle button (the wheel)", "middle button"),
+                TriggerButton.Back => ("press the back button", "back button"),
+                TriggerButton.Forward => ("press the forward button", "forward button"),
+                _ => ("right-click", "right button"),
+            };
+
+            return $"While dragging a window, {press} to show the grid. Release the {button} to fix the first corner, "
+                + "move to stretch the selection, then release the left button. The mouse wheel makes the grid finer "
+                + $"or coarser; {_settings.CancelKey} cancels.";
+        }
+    }
+
     public double TintOpacity
     {
         get => _settings.Appearance.TintOpacity;

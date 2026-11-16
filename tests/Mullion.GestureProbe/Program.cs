@@ -33,38 +33,62 @@ try
         return 1;
     }
 
+    // Put the test window somewhere nothing else covers it. Another always-on-top
+    // window can sit above it wherever it is raised, so try a few places on the
+    // main monitor and then on the others.
     var work = Win.WorkArea();
     int w = work.Right - work.Left;
     int h = work.Bottom - work.Top;
-    Console.WriteLine($"Work area: {work.Left},{work.Top} {w} x {h}");
+    (int X, int Y) spot = (work.Left + 220, work.Top + 160);
 
-    // Put the test window somewhere nothing else covers it. Another always-on-top
-    // window can sit above it wherever it is raised, so try a few places.
-    (int X, int Y)[] spots =
-    [
-        (work.Left + 220, work.Top + 160),
-        (work.Left + (w * 45 / 100), work.Top + (h * 12 / 100)),
-        (work.Left + (w * 65 / 100), work.Top + (h * 20 / 100)),
-        (work.Left + (w * 10 / 100), work.Top + (h * 55 / 100)),
-        (work.Left + (w * 40 / 100), work.Top + (h * 55 / 100)),
-        (work.Left + (w * 68 / 100), work.Top + (h * 58 / 100)),
-    ];
+    var screens = Win.WorkAreas();
+    screens.Remove(work);
+    screens.Insert(0, work);
 
-    var spot = spots[0];
-    foreach (var candidate in spots)
+    bool uncovered = false;
+    foreach (var monitor in screens)
     {
-        // -1 puts it above every other window, including other always-on-top ones.
-        Win.SetWindowPos(window, -1, candidate.X, candidate.Y, 700, 450, 0);
-        Thread.Sleep(250);
-        var placed = Win.Frame(window);
-        int middle = (placed.Left + placed.Right) / 2;
-        spot = candidate;
-        if (Win.RootWindowAt(middle, placed.Top + 14) == window
-            && Win.RootWindowAt(middle, (placed.Top + placed.Bottom) / 2) == window)
+        int mw = monitor.Right - monitor.Left;
+        int mh = monitor.Bottom - monitor.Top;
+        (int X, int Y)[] spots =
+        [
+            (monitor.Left + 220, monitor.Top + 160),
+            (monitor.Left + (mw * 45 / 100), monitor.Top + (mh * 12 / 100)),
+            (monitor.Left + (mw * 65 / 100), monitor.Top + (mh * 20 / 100)),
+            (monitor.Left + (mw * 10 / 100), monitor.Top + (mh * 55 / 100)),
+            (monitor.Left + (mw * 40 / 100), monitor.Top + (mh * 55 / 100)),
+            (monitor.Left + (mw * 68 / 100), monitor.Top + (mh * 58 / 100)),
+        ];
+
+        foreach (var candidate in spots)
+        {
+            // -1 puts it above every other window, including other always-on-top ones.
+            Win.SetWindowPos(window, -1, candidate.X, candidate.Y, 700, 450, 0);
+            Thread.Sleep(250);
+            var placed = Win.Frame(window);
+            int middle = (placed.Left + placed.Right) / 2;
+            if (Win.RootWindowAt(middle, placed.Top + 14) == window
+                && Win.RootWindowAt(middle, (placed.Top + placed.Bottom) / 2) == window)
+            {
+                (work, w, h, spot, uncovered) = (monitor, mw, mh, candidate, true);
+                break;
+            }
+        }
+
+        if (uncovered)
         {
             break;
         }
     }
+
+    if (!uncovered)
+    {
+        // Nothing was clicked; the first press would refuse anyway, but say why here.
+        Console.WriteLine("ABORTED  Other always-on-top windows cover the test window everywhere it was tried.");
+        return 100;
+    }
+
+    Console.WriteLine($"Work area: {work.Left},{work.Top} {w} x {h}");
 
     Win.SetForegroundWindow(window);
     Thread.Sleep(400);
@@ -449,6 +473,84 @@ try
         return failures;
     }
 
+    // "remap" checks a remapped grid button and cancel key. Mullion must be running
+    // with tests/Mullion.GestureProbe/remap.settings.json: the middle button shows
+    // the grid and F9 cancels it.
+    if (args.Length > 0 && args[0] == "remap")
+    {
+        const ushort F9 = 0x78, Esc = 0x1B;
+
+        // The middle button shows the grid: corner in cell (1,1), stretched to (2,2).
+        {
+            var before = Win.Frame(window);
+            var grip = Grip(before);
+            var a = (X: work.Left + (w * 3 / 8), Y: work.Top + (h * 3 / 8));
+            var b = (X: work.Left + (w * 5 / 8), Y: work.Top + (h * 5 / 8));
+
+            Press(grip.X, grip.Y);
+            Mouse.Glide(grip.X, grip.Y, grip.X + 60, grip.Y + 40);
+            Thread.Sleep(200);
+            Mouse.MiddleDown();
+            Thread.Sleep(120);
+            Mouse.Glide(grip.X + 60, grip.Y + 40, a.X, a.Y);
+            Thread.Sleep(120);
+            Mouse.MiddleUp();
+            Thread.Sleep(120);
+            Mouse.Glide(a.X, a.Y, b.X, b.Y);
+            Thread.Sleep(150);
+            Mouse.LeftUp();
+            Thread.Sleep(700);
+
+            var expected = new Win.RECT(work.Left + (w / 4), work.Top + (h / 4), work.Left + (w * 3 / 4), work.Top + (h * 3 / 4));
+            Check("The middle button shows the grid and the window is placed on cells (1,1) to (2,2)", Win.Frame(window), expected);
+        }
+
+        // The chosen key abandons the grid.
+        {
+            var before = Win.Frame(window);
+            var grip = Grip(before);
+
+            Press(grip.X, grip.Y);
+            Mouse.Glide(grip.X, grip.Y, grip.X + 300, grip.Y + 200);
+            Thread.Sleep(200);
+            Mouse.MiddleDown();
+            Thread.Sleep(60);
+            Mouse.MiddleUp();
+            Thread.Sleep(500);
+            Key(F9);
+            Thread.Sleep(200);
+            Mouse.LeftUp();
+            Thread.Sleep(700);
+
+            Check("The chosen key (F9) cancels and the window stays where the drag started", Win.Frame(window), before);
+        }
+
+        // Esc is an ordinary key now: the grid stays and the window is still placed.
+        {
+            var before = Win.Frame(window);
+            var grip = Grip(before);
+            var cell = (X: work.Left + (w / 8), Y: work.Top + (h / 8));
+
+            Press(grip.X, grip.Y);
+            Mouse.Glide(grip.X, grip.Y, cell.X, cell.Y);
+            Thread.Sleep(200);
+            Mouse.MiddleDown();
+            Thread.Sleep(60);
+            Mouse.MiddleUp();
+            Thread.Sleep(500);
+            Key(Esc);
+            Thread.Sleep(200);
+            Mouse.LeftUp();
+            Thread.Sleep(700);
+
+            var expected = new Win.RECT(work.Left, work.Top, work.Left + (w / 4), work.Top + (h / 4));
+            Check("Esc no longer cancels: the window is placed on the cell under the cursor", Win.Frame(window), expected);
+        }
+
+        Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+        return failures;
+    }
+
     // 1. An ordinary drag must behave exactly as it does without Mullion.
     {
         var before = Win.Frame(window);
@@ -624,6 +726,19 @@ void Shortcut(ushort key)
     Keyboard.Chord(key);
 }
 
+// Presses one key on its own, but only while the test window is the active one,
+// so the key can never be typed into some other window.
+void Key(ushort key)
+{
+    if (Win.GetForegroundWindow() != target.Handle)
+    {
+        Mouse.LeftUp();
+        throw new ProbeAbortedException("The test window is not the active window, so no key was pressed.");
+    }
+
+    Keyboard.Tap(key);
+}
+
 // How many times Mullion's trace log says it showed one of this probe's windows.
 static int ProbeWindowsShown(string logPath)
 {
@@ -765,6 +880,8 @@ internal static class Mouse
     public static void LeftUp() => Send(0x0004);
     public static void RightDown() => Send(0x0008);
     public static void RightUp() => Send(0x0010);
+    public static void MiddleDown() => Send(0x0020);
+    public static void MiddleUp() => Send(0x0040);
 
     private static void Send(uint flags, int dx = 0, int dy = 0)
     {

@@ -7,11 +7,12 @@ public sealed record GestureConfig(
     int WindowGap = 0,
     int EdgeGap = 0,
     bool SnapMoveEnabled = true,
-    bool Paused = false);
+    bool Paused = false,
+    TriggerButton GridButton = TriggerButton.Right);
 
 public enum OverlayKind
 {
-    /// <summary>The right button is held and the starting corner follows the cursor.</summary>
+    /// <summary>The grid button is held and the starting corner follows the cursor.</summary>
     Anchor,
 
     /// <summary>The starting corner is fixed and the cursor sets the opposite corner.</summary>
@@ -79,10 +80,11 @@ public interface IGestureHost
 /// <summary>
 /// Turns raw mouse and window events into grid placements.
 ///
-/// The main gesture: while a window is being dragged with the left button, a
-/// right-click shows the grid. The corner follows the cursor while the right button
-/// is held and is fixed when it is released; moving then stretches the selection,
-/// and releasing the left button places the window.
+/// The main gesture: while a window is being dragged with the left button, a click
+/// of the grid button (the right button, unless the user chose another) shows the
+/// grid. The corner follows the cursor while that button is held and is fixed when
+/// it is released; moving then stretches the selection, and releasing the left
+/// button places the window.
 ///
 /// All methods must be called from one thread. Mouse methods return true when the
 /// event should be hidden from other applications.
@@ -102,7 +104,14 @@ public sealed class GestureMachine
 
     private Mode _mode;
     private bool _leftDown;
-    private bool _rightSwallowed;
+
+    // The button that started the grid now showing; a change of settings in the
+    // middle of a placement must not change which button it listens to.
+    private TriggerButton _gridButton;
+
+    // The buttons whose press was hidden, one bit each, so that the matching
+    // release is hidden too.
+    private int _hiddenButtons;
     private bool _systemMoveEnded;
     private nint _moving;
     private nint _target;
@@ -154,40 +163,60 @@ public sealed class GestureMachine
         return false;
     }
 
-    public bool OnRightDown(PointI point)
+    /// <summary>A mouse button other than the left one went down.</summary>
+    public bool OnButtonDown(TriggerButton button, PointI point)
     {
         _last = point;
+        int bit = 1 << (int)button;
+
+        if (InGridMode && button != _gridButton)
+        {
+            // While the grid is showing the mouse belongs to Mullion: a stray click
+            // must not reach whatever lies under the overlay.
+            _hiddenButtons |= bit;
+            return true;
+        }
 
         switch (_mode)
         {
             case Mode.Anchoring:
+                _hiddenButtons |= bit;
                 return true;
 
             case Mode.Selecting:
-                // A second right-click lets the user pick a new starting corner.
+                // A second click lets the user pick a new starting corner.
                 _mode = Mode.Anchoring;
-                _rightSwallowed = true;
+                _hiddenButtons |= bit;
                 RefreshGrid();
                 return true;
 
             default:
-                return TryBeginGrid();
+                if (button != _config.GridButton || !TryBeginGrid())
+                {
+                    return false;
+                }
+
+                _gridButton = button;
+                _hiddenButtons |= bit;
+                return true;
         }
     }
 
-    public bool OnRightUp(PointI point)
+    /// <summary>A mouse button other than the left one was released.</summary>
+    public bool OnButtonUp(TriggerButton button, PointI point)
     {
         _last = point;
+        int bit = 1 << (int)button;
 
-        if (!_rightSwallowed)
+        if ((_hiddenButtons & bit) == 0)
         {
             return false;
         }
 
         // The matching press was hidden, so the release must be hidden too.
-        _rightSwallowed = false;
+        _hiddenButtons &= ~bit;
 
-        if (_mode == Mode.Anchoring)
+        if (_mode == Mode.Anchoring && button == _gridButton)
         {
             var area = _host.WorkAreaAt(point);
             if (!area.IsEmpty)
@@ -237,7 +266,7 @@ public sealed class GestureMachine
         if (!InGridMode)
         {
             // A window Mullion is to leave alone is treated as if nothing were being
-            // dragged: the right button and the snap key keep their usual meaning.
+            // dragged: the grid button and the snap key keep their usual meaning.
             _moving = _host.CanArrange(window) ? window : 0;
         }
     }
@@ -318,7 +347,6 @@ public sealed class GestureMachine
 
         _target = _moving;
         _mode = Mode.Anchoring;
-        _rightSwallowed = true;
         _systemMoveEnded = false;
         _density = 0;
         _pending = null;

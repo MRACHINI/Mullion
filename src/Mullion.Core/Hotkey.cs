@@ -47,6 +47,40 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, int Key)
     /// <summary>The name of a key, or null for a key that cannot be part of a shortcut.</summary>
     public static string? KeyName(int key) => NamesByKey.GetValueOrDefault(key);
 
+    /// <summary>
+    /// The name of a key that is used on its own rather than in a shortcut, such as
+    /// the key that cancels the grid: every shortcut key, plus Esc and Backspace.
+    /// Null for any other key.
+    /// </summary>
+    public static string? SingleKeyName(int key) => key switch
+    {
+        EscapeKey => "Esc",
+        0x08 => "Backspace",
+        _ => KeyName(key),
+    };
+
+    /// <summary>Reads a name written by <see cref="SingleKeyName"/>; case does not matter.</summary>
+    public static bool TryParseSingleKey(string? name, out int key)
+    {
+        string text = (name ?? string.Empty).Trim();
+        if (text.Equals("Esc", StringComparison.OrdinalIgnoreCase) || text.Equals("Escape", StringComparison.OrdinalIgnoreCase))
+        {
+            key = EscapeKey;
+            return true;
+        }
+
+        if (text.Equals("Backspace", StringComparison.OrdinalIgnoreCase))
+        {
+            key = 0x08;
+            return true;
+        }
+
+        return KeysByName.TryGetValue(text, out key);
+    }
+
+    /// <summary>The virtual-key code of Esc.</summary>
+    public const int EscapeKey = 0x1B;
+
     public override string ToString()
     {
         var parts = new List<string>(5);

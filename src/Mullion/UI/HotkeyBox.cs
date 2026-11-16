@@ -43,6 +43,40 @@ internal sealed class HotkeyBox : TextBox
         set => SetValue(HotkeyProperty, value);
     }
 
+    /// <summary>
+    /// When true the box records one key on its own (Esc, Q, F2…) instead of a
+    /// shortcut. Such a box always holds a key: it cannot be cleared.
+    /// </summary>
+    public bool SingleKey { get; set; }
+
+    private void RecordSingleKey(Key key, HotkeyModifiers modifiers)
+    {
+        if (IsModifierKey(key))
+        {
+            return;
+        }
+
+        int code = KeyInterop.VirtualKeyFromKey(key);
+        if (modifiers != HotkeyModifiers.None)
+        {
+            Rejected?.Invoke("Press one key on its own, without Ctrl, Alt, Shift or the Windows key.");
+        }
+        else if (Core.Hotkey.SingleKeyName(code) is null)
+        {
+            Rejected?.Invoke("That key cannot be used.");
+        }
+        else if (Hotkey?.Key == code)
+        {
+            Accepted?.Invoke();
+        }
+        else
+        {
+            SetCurrentValue(HotkeyProperty, new Hotkey(HotkeyModifiers.None, code));
+        }
+
+        ShowHotkey();
+    }
+
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnGotKeyboardFocus(e);
@@ -74,6 +108,12 @@ internal sealed class HotkeyBox : TextBox
         }
 
         e.Handled = true;
+
+        if (SingleKey)
+        {
+            RecordSingleKey(key, modifiers);
+            return;
+        }
 
         if (IsModifierKey(key))
         {
@@ -141,6 +181,13 @@ internal sealed class HotkeyBox : TextBox
 
     private void ShowHotkey()
     {
+        if (SingleKey)
+        {
+            string name = Hotkey is { } key ? Core.Hotkey.SingleKeyName(key.Key) ?? "None" : "None";
+            Text = IsKeyboardFocused ? $"{name}  (press a key to change)" : name;
+            return;
+        }
+
         Text = Hotkey is { } hotkey ? hotkey.ToString() : IsKeyboardFocused ? Prompt : "None";
     }
 

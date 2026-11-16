@@ -9,6 +9,22 @@ public enum SnapModifier
     Alt,
 }
 
+/// <summary>
+/// A mouse button other than the left one, which drags the window. One of them
+/// shows the grid during a drag.
+/// </summary>
+public enum TriggerButton
+{
+    Right,
+    Middle,
+
+    /// <summary>The first side button, which browsers use for "back".</summary>
+    Back,
+
+    /// <summary>The second side button, which browsers use for "forward".</summary>
+    Forward,
+}
+
 /// <summary>Colours and opacities of the grid overlay. Colours are #RRGGBB.</summary>
 public sealed class AppearanceSettings
 {
@@ -59,6 +75,22 @@ public sealed class Settings
     public int WindowGap { get; set; }
     public int EdgeGap { get; set; }
     public SnapModifier SnapMoveModifier { get; set; } = SnapModifier.Ctrl;
+
+    /// <summary>The mouse button that shows the grid while a window is being dragged.</summary>
+    public TriggerButton GridButton { get; set; } = TriggerButton.Right;
+
+    /// <summary>
+    /// The key that abandons the grid, by name: one key on its own, such as "Esc",
+    /// "Q" or "F2".
+    /// </summary>
+    public string CancelKey { get; set; } = DefaultCancelKey;
+
+    public const string DefaultCancelKey = "Esc";
+
+    /// <summary>The virtual-key code of <see cref="CancelKey"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int CancelKeyCode => Hotkey.TryParseSingleKey(CancelKey, out int key) ? key : Hotkey.EscapeKey;
+
     public AppearanceSettings Appearance { get; set; } = new();
 
     /// <summary>Saved zones, in the order the user arranged them.</summary>
@@ -112,6 +144,16 @@ public sealed class Settings
         {
             SnapMoveModifier = SnapModifier.Ctrl;
         }
+
+        if (!Enum.IsDefined(GridButton))
+        {
+            GridButton = TriggerButton.Right;
+        }
+
+        // Written the one way Mullion writes it, or back to Esc when it names no key.
+        CancelKey = Hotkey.TryParseSingleKey(CancelKey, out int cancel)
+            ? Hotkey.SingleKeyName(cancel)!
+            : DefaultCancelKey;
 
         Appearance ??= new AppearanceSettings();
         Appearance.Normalize();
@@ -170,6 +212,8 @@ public sealed class Settings
         WindowGap = other.WindowGap;
         EdgeGap = other.EdgeGap;
         SnapMoveModifier = other.SnapMoveModifier;
+        GridButton = other.GridButton;
+        CancelKey = other.CancelKey;
         Appearance = new AppearanceSettings
         {
             TintColor = other.Appearance.TintColor,

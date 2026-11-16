@@ -59,6 +59,7 @@ internal sealed class InputThread : IGestureHost, IDisposable
     private OverlayModel? _latestOverlay;
     private int _overlayScheduled;
     private volatile int _snapModifierKey = Native.VK_CONTROL;
+    private volatile int _cancelKey = Native.VK_ESCAPE;
 
     private readonly Action<int> _zonePressed;
     private readonly Action<IReadOnlyList<int>> _hotkeyProblems;
@@ -98,6 +99,16 @@ internal sealed class InputThread : IGestureHost, IDisposable
     {
         get => _snapModifierKey;
         set => _snapModifierKey = value;
+    }
+
+    /// <summary>
+    /// The virtual-key code of the key that abandons the grid. It is claimed only
+    /// while the grid is showing, so a change applies from the next placement.
+    /// </summary>
+    public int CancelKey
+    {
+        get => _cancelKey;
+        set => _cancelKey = value;
     }
 
     /// <summary>
@@ -520,8 +531,12 @@ internal sealed class InputThread : IGestureHost, IDisposable
                     Native.WM_MOUSEMOVE => Machine.OnMove(point),
                     Native.WM_LBUTTONDOWN => Machine.OnLeftDown(point),
                     Native.WM_LBUTTONUP => Machine.OnLeftUp(point),
-                    Native.WM_RBUTTONDOWN => Machine.OnRightDown(point),
-                    Native.WM_RBUTTONUP => Machine.OnRightUp(point),
+                    Native.WM_RBUTTONDOWN => Machine.OnButtonDown(TriggerButton.Right, point),
+                    Native.WM_RBUTTONUP => Machine.OnButtonUp(TriggerButton.Right, point),
+                    Native.WM_MBUTTONDOWN => Machine.OnButtonDown(TriggerButton.Middle, point),
+                    Native.WM_MBUTTONUP => Machine.OnButtonUp(TriggerButton.Middle, point),
+                    Native.WM_XBUTTONDOWN => SideButton(lParam) is { } side && Machine.OnButtonDown(side, point),
+                    Native.WM_XBUTTONUP => SideButton(lParam) is { } side && Machine.OnButtonUp(side, point),
                     Native.WM_MOUSEWHEEL => Machine.OnWheel(point, (short)(Marshal.ReadInt32(lParam, 8) >> 16)),
                     _ => false,
                 };
@@ -539,6 +554,16 @@ internal sealed class InputThread : IGestureHost, IDisposable
 
         return Native.CallNextHookEx(0, code, wParam, lParam);
     }
+
+    /// <summary>Which side button a side-button message is about; null for one Mullion does not know.</summary>
+    private static TriggerButton? SideButton(nint lParam) =>
+        // The button's number is in the high half of the same field that carries the wheel's movement.
+        (Marshal.ReadInt32(lParam, 8) >> 16) switch
+        {
+            1 => TriggerButton.Back,
+            2 => TriggerButton.Forward,
+            _ => null,
+        };
 
     private void EventProc(
         nint hook, uint eventType, nint window, int idObject, int idChild, uint eventThread, uint eventTime)
@@ -614,7 +639,12 @@ internal sealed class InputThread : IGestureHost, IDisposable
 
         if (enabled)
         {
-            _cancelKeyRegistered = Native.RegisterHotKey(0, CancelHotkeyId, Native.MOD_NOREPEAT, Native.VK_ESCAPE);
+            int key = _cancelKey;
+            _cancelKeyRegistered = Native.RegisterHotKey(0, CancelHotkeyId, Native.MOD_NOREPEAT, (uint)key);
+            if (!_cancelKeyRegistered)
+            {
+                Log.Write($"Could not claim the cancel key {Hotkey.SingleKeyName(key)} (error {Marshal.GetLastWin32Error()}).");
+            }
         }
         else
         {

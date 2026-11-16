@@ -17,6 +17,24 @@ internal partial class SettingsWindow : Window
         // another program owns can be seen too.
         ArrangeBox.GotKeyboardFocus += (_, _) => _viewModel.SetRecorder(ArrangeBox.Accept);
         ArrangeBox.LostKeyboardFocus += (_, _) => _viewModel.SetRecorder(null);
+
+        CancelBox.Rejected += ShowCancelMessage;
+        CancelBox.Accepted += () => ShowCancelMessage(null);
+        CancelBox.LostKeyboardFocus += (_, _) => ShowCancelMessage(null);
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.CancelHotkey))
+            {
+                ShowCancelMessage(null);
+            }
+        };
+    }
+
+    /// <summary>Says why a key cannot cancel the grid, or clears that message.</summary>
+    private void ShowCancelMessage(string? message)
+    {
+        CancelMessage.Text = message ?? string.Empty;
+        CancelMessage.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnAddRuleClick(object sender, RoutedEventArgs e)

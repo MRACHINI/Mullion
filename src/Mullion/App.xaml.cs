@@ -450,7 +450,10 @@ public partial class App : Application
                 _settings.WindowGap,
                 _settings.EdgeGap,
                 SnapMoveEnabled: _settings.SnapMoveModifier != SnapModifier.None,
-                Paused: _paused);
+                Paused: _paused,
+                GridButton: _settings.GridButton);
+
+            _input.CancelKey = _settings.CancelKeyCode;
 
             // Registering shortcuts is comparatively slow and this runs for every
             // slider movement, so only do it when the shortcuts actually changed.

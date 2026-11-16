@@ -35,6 +35,21 @@ While the grid is showing:
 Ordinary dragging and Windows' own edge snapping are untouched unless you
 right-click.
 
+### Another button, another key
+
+If the right button is awkward on your mouse, or another tool already uses it,
+choose a different one under **Settings… → Grid → Mouse and keys**: the middle
+button (a click of the wheel) or either side button. Everything above then
+works the same with that button, and the right button goes back to being an
+ordinary right button.
+
+The key that cancels can be changed there too: click the box and press the key
+you want. It is one key on its own, such as `Q` or `F2`, and Mullion claims it
+only while the grid is showing. Esc is then an ordinary key again.
+
+While the grid is showing, clicks of the other mouse buttons are ignored, so a
+stray click cannot land in the window underneath.
+
 ### Move on the grid without resizing
 
 Hold **Ctrl** while dragging a window and it snaps to the nearest grid line when
@@ -155,8 +170,8 @@ Right-click the Mullion icon in the notification area and choose **Settings…**
 
 - **Grid**: number of columns and rows, from 1 to 100 each (the same grid is
   used on every monitor); the gap between neighbouring windows and the gap at
-  the screen edges (zero means windows sit flush); and the key for moving on
-  the grid.
+  the screen edges (zero means windows sit flush); the mouse button that shows
+  the grid and the key that cancels it; and the key for moving on the grid.
 - **Zones**: the saved zones and their shortcuts, and the shortcut for arranging
   windows one by one.
 - **Rules**: which programs' windows go to which zone when they open.
@@ -214,6 +229,12 @@ seconds.
   argument `remember`.
 - Exclusions: the same with `exclusions.settings.json` and the argument
   `exclusions`.
+- Another button and cancel key: the same with `remap.settings.json` and the
+  argument `remap`.
+
+The probe never clicks or types into a window that is not its own. If other
+always-on-top windows cover its test window on the main monitor, it moves to
+another monitor, and gives up without clicking if none is free.
 
 Mullion.exe also takes a few switches for tracking down problems: `--trace`
 adds step-by-step details to `mullion.log`, and `--list-windows file.txt` writes
@@ -233,9 +254,9 @@ Mullion's own screens to a PNG file without showing them.
 
 ## Roadmap
 
-Planned, roughly in this order: remappable mouse input, swapping two windows,
-arranging all windows automatically, named scenes, a panel opened by a hotkey,
-running elevated, settings export and import, and automatic updates.
+Planned, roughly in this order: swapping two windows, arranging all windows
+automatically, named scenes, a panel opened by a hotkey, running elevated,
+settings export and import, and automatic updates.
 
 Ideas kept for later, if they turn out to be needed:
 

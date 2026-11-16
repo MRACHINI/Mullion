@@ -28,6 +28,10 @@ internal static class Native
     public const int WM_LBUTTONUP = 0x0202;
     public const int WM_RBUTTONDOWN = 0x0204;
     public const int WM_RBUTTONUP = 0x0205;
+    public const int WM_MBUTTONDOWN = 0x0207;
+    public const int WM_MBUTTONUP = 0x0208;
+    public const int WM_XBUTTONDOWN = 0x020B;
+    public const int WM_XBUTTONUP = 0x020C;
     public const int WM_MOUSEWHEEL = 0x020A;
 
     public const uint EVENT_OBJECT_SHOW = 0x8002;

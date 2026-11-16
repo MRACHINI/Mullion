@@ -65,8 +65,8 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
 
-        Assert.False(machine.OnRightDown(new PointI(10, 10)));
-        Assert.False(machine.OnRightUp(new PointI(10, 10)));
+        Assert.False(machine.OnButtonDown(TriggerButton.Right, new PointI(10, 10)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Right, new PointI(10, 10)));
         Assert.Null(host.Overlay);
         Assert.Equal(0, host.SystemMoveCancels);
     }
@@ -79,7 +79,7 @@ public class GestureMachineTests
         machine.OnLeftUp(new PointI(620, 330));
         machine.OnMoveSizeEnd(Window);
 
-        Assert.False(machine.OnRightDown(new PointI(620, 330)));
+        Assert.False(machine.OnButtonDown(TriggerButton.Right, new PointI(620, 330)));
         Assert.Null(host.Overlay);
     }
 
@@ -90,7 +90,7 @@ public class GestureMachineTests
         StartDrag(machine);
 
         // Right button down: grid appears, the system move is cancelled, the click is hidden.
-        Assert.True(machine.OnRightDown(new PointI(500, 300)));
+        Assert.True(machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300)));
         Assert.Equal(1, host.SystemMoveCancels);
         Assert.NotNull(host.Overlay);
         Assert.Equal(OverlayKind.Anchor, host.Overlay!.Kind);
@@ -100,7 +100,7 @@ public class GestureMachineTests
         Assert.True(host.CancelKeyEnabled);
 
         // Right button up fixes the corner in cell (1,1).
-        Assert.True(machine.OnRightUp(new PointI(500, 300)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
         Assert.Equal(OverlayKind.Select, host.Overlay!.Kind);
 
         // Moving stretches the selection to cell (2,3).
@@ -123,8 +123,8 @@ public class GestureMachineTests
         StartDrag(machine);
 
         // The right-click is not hidden and nothing is shown or cancelled.
-        Assert.False(machine.OnRightDown(new PointI(500, 300)));
-        Assert.False(machine.OnRightUp(new PointI(500, 300)));
+        Assert.False(machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
         Assert.Null(host.Overlay);
         Assert.Equal(0, host.SystemMoveCancels);
 
@@ -160,7 +160,7 @@ public class GestureMachineTests
         machine.OnMoveSizeEnd(0x9999);
 
         StartDrag(machine);
-        Assert.True(machine.OnRightDown(new PointI(500, 300)));
+        Assert.True(machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300)));
         Assert.NotNull(host.Overlay);
     }
 
@@ -169,9 +169,9 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(500, 300));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300));
         machine.OnMoveSizeEnd(Window);
-        machine.OnRightUp(new PointI(500, 300));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300));
         machine.OnWheel(new PointI(500, 300), 120);
         machine.OnMove(new PointI(1300, 1000));
         machine.OnLeftUp(new PointI(1300, 1000));
@@ -198,9 +198,9 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(1500, 900));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(1500, 900));
         machine.OnMoveSizeEnd(Window);
-        machine.OnRightUp(new PointI(1500, 900));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(1500, 900));
 
         machine.OnMove(new PointI(100, 100));
         machine.OnLeftUp(new PointI(100, 100));
@@ -213,13 +213,13 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
 
         machine.OnMove(new PointI(1500, 900));
         Assert.Equal(new CellSpan(3, 3, 3, 3), host.Overlay!.Span);
 
-        machine.OnRightUp(new PointI(1500, 900));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(1500, 900));
         machine.OnLeftUp(new PointI(1500, 900));
 
         Assert.Equal([(Window, new RectI(1440, 780, 1920, 1040), false)], host.Placements);
@@ -230,7 +230,7 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
 
         machine.OnLeftUp(new PointI(100, 100));
@@ -238,8 +238,8 @@ public class GestureMachineTests
         Assert.Equal([(Window, new RectI(0, 0, 480, 260), false)], host.Placements);
 
         // The right button release that follows must still be hidden, once.
-        Assert.True(machine.OnRightUp(new PointI(100, 100)));
-        Assert.False(machine.OnRightUp(new PointI(100, 100)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100)));
     }
 
     [Fact]
@@ -247,8 +247,8 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
 
         machine.OnLeftUp(new PointI(100, 100));
 
@@ -266,8 +266,8 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
         machine.OnLeftUp(new PointI(100, 100));
 
         machine.OnTimer();
@@ -285,7 +285,7 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         Assert.False(host.CancelKeyEnabled);
 
         machine.OnTimer();
@@ -299,7 +299,7 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
 
         machine.OnCancelKey();
@@ -307,7 +307,7 @@ public class GestureMachineTests
         Assert.Null(host.Overlay);
         Assert.False(host.CancelKeyEnabled);
 
-        Assert.True(machine.OnRightUp(new PointI(100, 100)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100)));
         Assert.False(machine.OnLeftUp(new PointI(100, 100)));
         Assert.Empty(host.Placements);
     }
@@ -317,17 +317,17 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
         machine.OnMove(new PointI(1000, 600));
 
-        Assert.True(machine.OnRightDown(new PointI(1000, 600)));
+        Assert.True(machine.OnButtonDown(TriggerButton.Right, new PointI(1000, 600)));
         Assert.Equal(OverlayKind.Anchor, host.Overlay!.Kind);
         Assert.Equal(new CellSpan(2, 2, 2, 2), host.Overlay.Span);
         Assert.Equal(1, host.SystemMoveCancels);
 
-        Assert.True(machine.OnRightUp(new PointI(1000, 600)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(1000, 600)));
         machine.OnMove(new PointI(1900, 1000));
         machine.OnLeftUp(new PointI(1900, 1000));
 
@@ -342,9 +342,9 @@ public class GestureMachineTests
         Assert.False(machine.OnWheel(new PointI(100, 100), 120));
 
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
 
         Assert.True(machine.OnWheel(new PointI(100, 100), 120));
         Assert.Equal((8, 8), (host.Overlay!.Columns, host.Overlay.Rows));
@@ -366,14 +366,14 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
         machine.OnWheel(new PointI(100, 100), 120);
         machine.OnLeftUp(new PointI(100, 100));
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
 
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
 
         Assert.Equal((4, 4), (host.Overlay!.Columns, host.Overlay.Rows));
     }
@@ -384,7 +384,7 @@ public class GestureMachineTests
         var (machine, host) = Create(new GestureConfig(Paused: true));
         StartDrag(machine);
 
-        Assert.False(machine.OnRightDown(new PointI(100, 100)));
+        Assert.False(machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100)));
         Assert.Null(host.Overlay);
         Assert.Equal(0, host.SystemMoveCancels);
     }
@@ -394,9 +394,9 @@ public class GestureMachineTests
     {
         var (machine, host) = Create(new GestureConfig(WindowGap: 10, EdgeGap: 20));
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
-        machine.OnRightUp(new PointI(100, 100));
+        machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
         machine.OnLeftUp(new PointI(100, 100));
 
         Assert.Equal([(Window, new RectI(20, 20, 475, 255), false)], host.Placements);
@@ -407,7 +407,7 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         int updates = host.OverlayUpdates;
 
         machine.OnMove(new PointI(101, 101));
@@ -421,7 +421,7 @@ public class GestureMachineTests
     {
         var (machine, host) = Create();
         StartDrag(machine);
-        machine.OnRightDown(new PointI(100, 100));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
         machine.OnMoveSizeEnd(Window);
 
         machine.OnMoveSizeStart(0x9999);
@@ -489,9 +489,115 @@ public class GestureMachineTests
         host.ModifierDown = true;
         StartDrag(machine);
 
-        Assert.True(machine.OnRightDown(new PointI(100, 100)));
+        Assert.True(machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100)));
 
         Assert.Equal(OverlayKind.Anchor, host.Overlay!.Kind);
         Assert.Equal(1, host.SystemMoveCancels);
+    }
+
+    [Theory]
+    [InlineData(TriggerButton.Middle)]
+    [InlineData(TriggerButton.Back)]
+    [InlineData(TriggerButton.Forward)]
+    public void Another_button_can_be_chosen_to_show_the_grid(TriggerButton button)
+    {
+        var (machine, host) = Create(new GestureConfig(GridButton: button));
+        StartDrag(machine);
+
+        Assert.True(machine.OnButtonDown(button, new PointI(500, 300)));
+        Assert.Equal(1, host.SystemMoveCancels);
+        Assert.Equal(OverlayKind.Anchor, host.Overlay!.Kind);
+        machine.OnMoveSizeEnd(Window);
+
+        Assert.True(machine.OnButtonUp(button, new PointI(500, 300)));
+        Assert.Equal(OverlayKind.Select, host.Overlay!.Kind);
+
+        machine.OnMove(new PointI(1300, 1000));
+        Assert.False(machine.OnLeftUp(new PointI(1300, 1000)));
+        Assert.Equal([(Window, new RectI(480, 260, 1440, 1040), false)], host.Placements);
+    }
+
+    [Fact]
+    public void The_right_button_is_ordinary_once_another_button_shows_the_grid()
+    {
+        var (machine, host) = Create(new GestureConfig(GridButton: TriggerButton.Middle));
+        StartDrag(machine);
+
+        Assert.False(machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
+        Assert.Null(host.Overlay);
+        Assert.Equal(0, host.SystemMoveCancels);
+    }
+
+    [Fact]
+    public void Other_buttons_are_hidden_while_the_grid_is_showing()
+    {
+        var (machine, host) = Create();
+        StartDrag(machine);
+        machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300));
+        machine.OnMoveSizeEnd(Window);
+        machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300));
+        var shown = host.Overlay;
+
+        // A middle click must not reach the window under the grid, and changes nothing.
+        Assert.True(machine.OnButtonDown(TriggerButton.Middle, new PointI(900, 600)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Middle, new PointI(900, 600)));
+        Assert.Equal(OverlayKind.Select, host.Overlay!.Kind);
+        Assert.Equal(shown!.Span!.Value.Column0, host.Overlay.Span!.Value.Column0);
+
+        machine.OnLeftUp(new PointI(900, 600));
+        Assert.Single(host.Placements);
+
+        // Afterwards the middle button is ordinary again.
+        Assert.False(machine.OnButtonDown(TriggerButton.Middle, new PointI(900, 600)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Middle, new PointI(900, 600)));
+    }
+
+    [Fact]
+    public void A_button_held_when_the_grid_goes_away_still_has_its_release_hidden()
+    {
+        var (machine, _) = Create();
+        StartDrag(machine);
+        machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300));
+        machine.OnMoveSizeEnd(Window);
+
+        Assert.True(machine.OnButtonDown(TriggerButton.Back, new PointI(500, 300)));
+        machine.OnLeftUp(new PointI(500, 300));
+
+        // Both presses were hidden, so both releases are, and only once each.
+        Assert.True(machine.OnButtonUp(TriggerButton.Back, new PointI(500, 300)));
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Back, new PointI(500, 300)));
+        Assert.False(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
+    }
+
+    [Fact]
+    public void A_button_pressed_before_the_grid_keeps_its_release()
+    {
+        var (machine, _) = Create();
+        StartDrag(machine);
+
+        // Pressed while nothing was showing, so the press went through.
+        Assert.False(machine.OnButtonDown(TriggerButton.Middle, new PointI(500, 300)));
+        machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300));
+
+        Assert.False(machine.OnButtonUp(TriggerButton.Middle, new PointI(500, 300)));
+    }
+
+    [Fact]
+    public void Changing_the_button_during_a_placement_waits_for_the_next_one()
+    {
+        var (machine, host) = Create();
+        StartDrag(machine);
+        machine.OnButtonDown(TriggerButton.Right, new PointI(500, 300));
+        machine.OnMoveSizeEnd(Window);
+
+        machine.Config = new GestureConfig(GridButton: TriggerButton.Middle);
+
+        // The grid on screen was started with the right button and still obeys it.
+        Assert.True(machine.OnButtonUp(TriggerButton.Right, new PointI(500, 300)));
+        Assert.Equal(OverlayKind.Select, host.Overlay!.Kind);
+        Assert.True(machine.OnButtonDown(TriggerButton.Right, new PointI(900, 600)));
+        Assert.Equal(OverlayKind.Anchor, host.Overlay!.Kind);
     }
 }

@@ -83,7 +83,7 @@
                     <StackPanel Margin="16,0,16,14">
                         <TextBlock Style="{StaticResource Section}" Text="Grid" />
                         <TextBlock Style="{StaticResource Hint}"
-                                   Text="While dragging a window, right-click to show the grid. Release the right button to fix the first corner, move to stretch the selection, then release the left button. The mouse wheel makes the grid finer or coarser; Esc cancels." />
+                                   Text="{Binding GestureHint}" />
                         <Grid Style="{StaticResource Row}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="170" />
@@ -128,6 +128,39 @@
                                     IsSnapToTickEnabled="True" SmallChange="1" LargeChange="4" Value="{Binding EdgeGap}" />
                             <TextBlock Grid.Column="2" Style="{StaticResource Value}" Text="{Binding EdgeGap, StringFormat={}{0} px}" />
                         </Grid>
+
+                        <TextBlock Style="{StaticResource Section}" Text="Mouse and keys" />
+                        <Grid Style="{StaticResource Row}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource Label}" Text="Button that shows the grid" />
+                            <ComboBox Grid.Column="1" Width="210" HorizontalAlignment="Left" Margin="8,0"
+                                      ItemsSource="{Binding GridButtons}" DisplayMemberPath="Value" SelectedValuePath="Key"
+                                      SelectedValue="{Binding GridButton}"
+                                      AutomationProperties.Name="Button that shows the grid">
+                                <ComboBox.ItemContainerStyle>
+                                    <!-- So a screen reader says "Right button", not the entry's inner form. -->
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Value}" />
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Style="{StaticResource Row}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource Label}" Text="Key that cancels" />
+                            <ui:HotkeyBox x:Name="CancelBox" Grid.Column="1" Width="210" HorizontalAlignment="Left" Margin="8,0"
+                                          Padding="6,3" VerticalContentAlignment="Center" SingleKey="True"
+                                          Hotkey="{Binding CancelHotkey}"
+                                          AutomationProperties.Name="Key that cancels the grid" />
+                        </Grid>
+                        <TextBlock x:Name="CancelMessage" Margin="178,2,0,0" Foreground="#FFB45309" FontSize="12"
+                                   TextWrapping="Wrap" Visibility="Collapsed" />
 
                         <TextBlock Style="{StaticResource Section}" Text="Move on the grid" />
                         <TextBlock Style="{StaticResource Hint}"
