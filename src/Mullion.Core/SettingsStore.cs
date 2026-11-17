@@ -40,6 +40,46 @@ public static class SettingsStore
         return settings;
     }
 
+    /// <summary>
+    /// Reads a settings file the user chose to import. Unlike <see cref="Load"/> it
+    /// never touches the file, and it answers null for anything that is not a
+    /// Mullion settings file, rather than quietly giving defaults.
+    /// </summary>
+    public static Settings? TryReadForImport(string path)
+    {
+        try
+        {
+            string text = File.ReadAllText(path);
+
+            // Any JSON object can be read as settings, with every unknown name
+            // ignored; ask for at least one name Mullion itself would write.
+            using (var document = JsonDocument.Parse(
+                text,
+                new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }))
+            {
+                if (document.RootElement.ValueKind != JsonValueKind.Object
+                    || !document.RootElement.EnumerateObject().Any(property => SettingNames.Contains(property.Name)))
+                {
+                    return null;
+                }
+            }
+
+            var settings = JsonSerializer.Deserialize<Settings>(text, Options);
+            settings?.Normalize();
+            return settings;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static readonly HashSet<string> SettingNames = typeof(Settings)
+        .GetProperties()
+        .Where(property => property.CanWrite && !property.IsDefined(typeof(JsonIgnoreAttribute), inherit: false))
+        .Select(property => property.Name)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Writes settings through a temporary file so a crash cannot leave a half-written file.</summary>
     public static void Save(string path, Settings settings)
     {

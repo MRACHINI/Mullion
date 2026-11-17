@@ -233,6 +233,78 @@ internal partial class SettingsWindow : Window
         }
     }
 
+    private void OnCheckUpdateClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.CheckForUpdatesNow();
+    }
+
+    private void OnInstallUpdateClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.InstallUpdate();
+    }
+
+    private void OnExportClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export Mullion settings",
+            FileName = "Mullion settings.json",
+            DefaultExt = ".json",
+            Filter = SettingsFileFilter,
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+
+        if (dialog.ShowDialog(this) == true && _viewModel.Export(dialog.FileName) is { } problem)
+        {
+            MessageBox.Show(this, problem, "Mullion", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import Mullion settings",
+            DefaultExt = ".json",
+            Filter = SettingsFileFilter,
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        // Say so before asking anything, when the file is not one of Mullion's.
+        if (!SettingsViewModel.IsSettingsFile(dialog.FileName))
+        {
+            MessageBox.Show(this, SettingsViewModel.NotASettingsFile, "Mullion", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            $"Replace all your settings, zones, rules and exclusions with those in “{System.IO.Path.GetFileName(dialog.FileName)}”?\n\n"
+                + "What you have now is kept as settings.backup.json next to Mullion.exe.",
+            "Mullion",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        if (_viewModel.Import(dialog.FileName) is { } problem)
+        {
+            MessageBox.Show(this, problem, "Mullion", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private const string SettingsFileFilter = "Mullion settings (*.json)|*.json|All files (*.*)|*.*";
+
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
         _viewModel.ResetToDefaults();

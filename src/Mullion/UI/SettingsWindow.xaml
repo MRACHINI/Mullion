@@ -522,8 +522,37 @@
                 <StackPanel Margin="16,0,16,14">
                     <TextBlock Style="{StaticResource Section}" Text="General" />
                     <CheckBox Content="Start Mullion when I sign in to Windows" IsChecked="{Binding StartWithWindows}" />
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,18,0,0"
+                    <CheckBox Margin="0,10,0,0" Content="Run Mullion as administrator" IsChecked="{Binding RunAsAdministrator}" />
+                    <TextBlock Style="{StaticResource Hint}" Margin="20,4,0,0"
+                               Text="Needed to move the windows of programs that themselves run as administrator. Windows asks for your permission each time Mullion starts, except when it starts as you sign in." />
+                    <TextBlock Margin="20,0,0,0" TextWrapping="Wrap" Foreground="#FF374151" Text="{Binding ElevationStatus}"
+                               Visibility="{Binding HasElevationStatus, Converter={StaticResource Visible}}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="New versions" />
+                    <CheckBox Content="Ask GitHub once a day whether a new version has been published"
+                              IsChecked="{Binding CheckForUpdates}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Padding="14,5" Content="Check now" Click="OnCheckUpdateClick" IsEnabled="{Binding UpdateIdle}" />
+                        <Button Padding="14,5" Margin="8,0,0,0" Content="Update and restart" Click="OnInstallUpdateClick"
+                                IsEnabled="{Binding UpdateIdle}"
+                                Visibility="{Binding UpdateAvailable, Converter={StaticResource Visible}}" />
+                    </StackPanel>
+                    <TextBlock x:Name="UpdateStatusText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#FF374151"
+                               AutomationProperties.LiveSetting="Polite"
+                               Text="{Binding UpdateStatus}"
+                               Visibility="{Binding HasUpdateStatus, Converter={StaticResource Visible}}" />
+
+                    <TextBlock Style="{StaticResource Section}" Text="Settings file" />
+                    <TextBlock Style="{StaticResource Hint}"
                                Text="Mullion keeps its settings in settings.json, in the same folder as Mullion.exe." />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Padding="14,5" Content="Export…" Click="OnExportClick"
+                                ToolTip="Saves every setting to a file you choose." />
+                        <Button Padding="14,5" Margin="8,0,0,0" Content="Import…" Click="OnImportClick"
+                                ToolTip="Replaces every setting with those in a file you exported earlier." />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="An exported file holds everything: options, zones, rules, exclusions and the window titles Mullion remembered. Importing replaces all of it; what you had before is kept as settings.backup.json in the same folder." />
                 </StackPanel>
             </TabItem>
 

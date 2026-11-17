@@ -181,16 +181,61 @@ Right-click the Mullion icon in the notification area and choose **Settings…**
 - **Exclusions**: programs Mullion leaves alone.
 - **Appearance**: colour and opacity of the tint, the grid lines and the
   selection.
-- **General**: start Mullion when you sign in to Windows.
+- **General**: start Mullion when you sign in to Windows; run it as
+  administrator; look for new versions; export and import the settings.
 
 The menu also has **Pause**, which switches the gestures off until you untick it.
+
+### Running as administrator
+
+Windows does not let an ordinary program move the windows of a program that
+runs as administrator (Task Manager, an elevated terminal, some installers).
+Tick **Settings… → General → Run Mullion as administrator** and Mullion restarts
+with those rights, after Windows has asked for your permission.
+
+From then on Windows asks each time Mullion starts. If Mullion also starts when
+you sign in, it does so through a scheduled task instead of the usual registry
+entry, and that start does not ask. Unticking the box removes the task and
+restarts Mullion as an ordinary program. If you answer "No" to Windows'
+question, Mullion simply runs without the rights that time.
+
+On a PC where Windows never asks that question (User Account Control switched
+off), every program already runs as administrator and the option changes
+nothing; the General tab says so.
+
+### New versions
+
+Once a day, and shortly after it starts, Mullion asks GitHub whether a newer
+version has been published. If there is one, the tray icon says so, and
+**Settings… → General → Update and restart** downloads it, puts it in the place
+of the Mullion.exe you are running and restarts. Nothing is installed without
+that click. **Check now** asks straight away.
+
+The question goes to `api.github.com` and says only that it comes from Mullion
+and which version; nothing about you or your PC is sent. Untick **Ask GitHub
+once a day…** to stop it. The download is accepted only from this project's own
+releases, and only if its size and checksum match what was published.
+
+### Moving your settings
+
+**Settings… → General → Export…** writes everything to a file you choose:
+options, zones, rules, exclusions, and the window titles Mullion remembered.
+**Import…** on another PC, or another copy of Mullion, replaces everything
+there with the file's contents. What was there before is kept as
+`settings.backup.json` next to Mullion.exe, so an import can be undone by
+importing that file. Whether Mullion runs as administrator is not taken from
+the file; that belongs to the PC.
 
 ## Portable
 
 Mullion is a single executable. It keeps `settings.json` (and `mullion.log`, if
 something goes wrong) in the folder it runs from, so put it somewhere you can
-write to. The only thing stored elsewhere is the optional start-with-Windows
-entry in the registry.
+write to. The only thing stored elsewhere is what starts it when you sign in,
+if you ask for that: an entry in the registry, or a scheduled task when Mullion
+runs as administrator.
+
+An update replaces the executable where it stands; the previous one is kept
+beside it as `Mullion.exe.old` until the new one has started.
 
 Two versions are published:
 
@@ -204,7 +249,7 @@ Two versions are published:
 - Run only one grid tool at a time. Another tool that reacts to the same mouse
   gesture (the original WindowGrid, for example) will fight Mullion for it.
 - Windows started "as administrator" can only be moved if Mullion itself runs as
-  administrator.
+  administrator; see [Running as administrator](#running-as-administrator).
 - Some windows refuse certain sizes; Mullion moves those as close as they allow.
 
 ## Building from source
@@ -244,7 +289,17 @@ Mullion.exe also takes a few switches for tracking down problems: `--trace`
 adds step-by-step details to `mullion.log`, and `--list-windows file.txt` writes
 the windows that arranging would go through (without their titles).
 `--render-overlay`, `--render-arrange` and `--render-settings <tab>` draw
-Mullion's own screens to a PNG file without showing them.
+Mullion's own screens to a PNG file without showing them. `--task-xml file.xml`
+writes the scheduled task that would start Mullion as administrator, without
+registering it.
+
+### Publishing a version
+
+Mullion updates itself from this repository's GitHub releases. To publish one:
+set `Version` in `Directory.Build.props`, run `build.ps1`, and create a release
+tagged with that version (`v0.2.0`) with `dist\Mullion.exe` and
+`dist\Mullion-full.exe` attached under exactly those names. Drafts and
+pre-releases are ignored.
 
 ### Layout
 
@@ -259,8 +314,7 @@ Mullion's own screens to a PNG file without showing them.
 ## Roadmap
 
 Planned, roughly in this order: swapping two windows, arranging all windows
-automatically, named scenes, a panel opened by a hotkey, running elevated,
-settings export and import, and automatic updates.
+automatically, named scenes, and a panel opened by a hotkey.
 
 Ideas kept for later, if they turn out to be needed:
 

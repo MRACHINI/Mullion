@@ -9,6 +9,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ToolStripMenuItem _pauseItem;
     private readonly System.Drawing.Icon? _image;
+    private Action? _notificationClicked;
 
     public TrayIcon(Action openSettings, Action arrangeWindows, Action<bool> setPaused, Action exit)
     {
@@ -36,7 +37,15 @@ internal sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.DoubleClick += (_, _) => openSettings();
+        _icon.BalloonTipClicked += (_, _) => _notificationClicked?.Invoke();
         UpdateText();
+    }
+
+    /// <summary>Shows a notification from the icon; clicking it runs the action.</summary>
+    public void Notify(string text, Action clicked)
+    {
+        _notificationClicked = clicked;
+        _icon.ShowBalloonTip(10000, "Mullion", text, Forms.ToolTipIcon.Info);
     }
 
     public void Dispose()

@@ -134,6 +134,15 @@ public sealed class Settings
     /// </summary>
     public string ArrangeShortcut { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether Mullion runs as administrator, so that it can also move the windows
+    /// of programs that run as administrator.
+    /// </summary>
+    public bool RunAsAdministrator { get; set; }
+
+    /// <summary>Whether Mullion asks GitHub, once a day, if a newer version has been published.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>The arrange shortcut, or null when there is none or it cannot be used.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public Hotkey? ArrangeHotkey =>
@@ -237,6 +246,8 @@ public sealed class Settings
         ApplyRulesOnOpen = other.ApplyRulesOnOpen;
         RememberPlacements = other.RememberPlacements;
         ExcludedPrograms = [.. other.ExcludedPrograms];
+        RunAsAdministrator = other.RunAsAdministrator;
+        CheckForUpdates = other.CheckForUpdates;
         Normalize();
     }
 }

@@ -189,10 +189,140 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         {
             if (value != AutoStart.IsEnabled)
             {
-                AutoStart.SetEnabled(value);
+                AutoStart.SetEnabled(value, _settings.RunAsAdministrator);
                 Raise();
             }
         }
+    }
+
+    /// <summary>
+    /// Switches running as administrator on or off; Mullion restarts to do it. The
+    /// setting stays as it was when the user backs out.
+    /// </summary>
+    public Action<bool> SetRunAsAdministrator { get; set; } = _ => { };
+
+    public bool RunAsAdministrator
+    {
+        get => _settings.RunAsAdministrator;
+        set
+        {
+            if (value == _settings.RunAsAdministrator)
+            {
+                return;
+            }
+
+            SetRunAsAdministrator(value);
+
+            // The tick box has already changed on screen; when the change was not
+            // made after all, it has to be told to look again once this is over.
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(() =>
+            {
+                Raise(nameof(RunAsAdministrator));
+                Raise(nameof(ElevationStatus));
+                Raise(nameof(HasElevationStatus));
+            });
+        }
+    }
+
+    /// <summary>Says how Mullion is running, when that is worth saying.</summary>
+    public string ElevationStatus =>
+        Elevation.IsAlwaysElevated
+            ? "On this PC every program you start runs as administrator, Mullion included, so this option changes nothing here."
+            : Elevation.IsElevated
+            ? "Mullion is running as administrator now."
+            : _settings.RunAsAdministrator
+                ? "Mullion is not running as administrator at the moment: permission was not given when it started."
+                : string.Empty;
+
+    public bool HasElevationStatus => ElevationStatus.Length > 0;
+
+    public bool CheckForUpdates
+    {
+        get => _settings.CheckForUpdates;
+        set => Set(_settings.CheckForUpdates, value, v => _settings.CheckForUpdates = v);
+    }
+
+    /// <summary>Asks GitHub now whether a newer version has been published.</summary>
+    public Action CheckForUpdatesNow { get; set; } = () => { };
+
+    /// <summary>Downloads and installs the version that was found, then restarts Mullion.</summary>
+    public Action InstallUpdate { get; set; } = () => { };
+
+    /// <summary>What is known about new versions, in words; empty when there is nothing to say.</summary>
+    public string UpdateStatus { get; private set; } = string.Empty;
+
+    public bool HasUpdateStatus => UpdateStatus.Length > 0;
+
+    /// <summary>True when a newer version was found and can be installed.</summary>
+    public bool UpdateAvailable { get; private set; }
+
+    /// <summary>False while GitHub is being asked or a version is being downloaded.</summary>
+    public bool UpdateIdle { get; private set; } = true;
+
+    /// <summary>Shows where looking for, or installing, a new version stands.</summary>
+    public void SetUpdateState(string status, bool available, bool busy)
+    {
+        UpdateStatus = status;
+        UpdateAvailable = available;
+        UpdateIdle = !busy;
+        Raise(nameof(UpdateStatus));
+        Raise(nameof(HasUpdateStatus));
+        Raise(nameof(UpdateAvailable));
+        Raise(nameof(UpdateIdle));
+    }
+
+    /// <summary>Where the settings are kept before an import replaces them.</summary>
+    public static string BackupPath => System.IO.Path.Combine(App.DataDirectory, "settings.backup.json");
+
+    /// <summary>
+    /// Writes every setting to a file the user chose. Returns what went wrong, or
+    /// null when the file was written.
+    /// </summary>
+    public string? Export(string path)
+    {
+        try
+        {
+            SettingsStore.Save(path, _settings);
+            return null;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return "The file could not be written there.";
+        }
+    }
+
+    public const string NotASettingsFile = "That file is not a Mullion settings file, or it could not be read.";
+
+    /// <summary>True when a file holds settings Mullion can import.</summary>
+    public static bool IsSettingsFile(string path) => SettingsStore.TryReadForImport(path) is not null;
+
+    /// <summary>
+    /// Replaces every setting with those in a file the user chose, after keeping
+    /// the current ones in <see cref="BackupPath"/>. Returns what went wrong, or
+    /// null when the settings were replaced.
+    /// </summary>
+    public string? Import(string path)
+    {
+        var imported = SettingsStore.TryReadForImport(path);
+        if (imported is null)
+        {
+            return NotASettingsFile;
+        }
+
+        try
+        {
+            SettingsStore.Save(BackupPath, _settings);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return "Your current settings could not be kept as a backup, so nothing was imported.";
+        }
+
+        // How Mullion runs belongs to this PC, not to the file.
+        imported.RunAsAdministrator = _settings.RunAsAdministrator;
+        _settings.CopyFrom(imported);
+        RefreshEverything();
+        return null;
     }
 
     /// <summary>The zones, one row each, in the order they are stored.</summary>
@@ -510,8 +640,17 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
             Rules = _settings.Rules,
             ExcludedPrograms = _settings.ExcludedPrograms,
             CycleMonitors = _settings.CycleMonitors,
+
+            // Changing this means restarting Mullion, which a reset should not do.
+            RunAsAdministrator = _settings.RunAsAdministrator,
         };
         _settings.CopyFrom(defaults);
+        RefreshEverything();
+    }
+
+    /// <summary>Shows the settings afresh after all of them may have changed.</summary>
+    private void RefreshEverything()
+    {
         RebuildZoneRows();
         RebuildRuleRows();
         RebuildExclusions();

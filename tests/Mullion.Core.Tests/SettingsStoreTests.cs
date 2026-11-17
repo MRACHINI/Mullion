@@ -59,6 +59,74 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void An_exported_file_imports_back_whole()
+    {
+        var settings = new Settings { Columns = 6, Rows = 3, GridButton = TriggerButton.Middle, CheckForUpdates = false };
+        settings.Zones.Add(new Zone { Name = "Left", Columns = 2, Rows = 1, Shortcut = "Ctrl+Alt+1" });
+        settings.Rules.Add(new PlacementRule { Program = "excel", ZoneId = settings.Zones[0].Id });
+        settings.ExcludedPrograms.Add("game");
+        SettingsStore.Save(FilePath, settings);
+
+        var imported = SettingsStore.TryReadForImport(FilePath);
+
+        Assert.NotNull(imported);
+        Assert.Equal((6, 3), (imported.Columns, imported.Rows));
+        Assert.Equal(TriggerButton.Middle, imported.GridButton);
+        Assert.False(imported.CheckForUpdates);
+        Assert.Equal("Left", Assert.Single(imported.Zones).Name);
+        Assert.Equal("excel", Assert.Single(imported.Rules).Program);
+        Assert.Equal(["game"], imported.ExcludedPrograms);
+    }
+
+    [Fact]
+    public void A_hand_written_file_with_only_some_settings_can_be_imported()
+    {
+        File.WriteAllText(FilePath, "{ \"columns\": 8 } // the rest stays as it comes");
+
+        var imported = SettingsStore.TryReadForImport(FilePath);
+
+        Assert.NotNull(imported);
+        Assert.Equal(8, imported.Columns);
+        Assert.Equal(Settings.DefaultGridSize, imported.Rows);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not json at all")]
+    [InlineData("[1, 2, 3]")]
+    [InlineData("{}")]
+    [InlineData("{ \"name\": \"some other program's file\", \"version\": 3 }")]
+    [InlineData("{ \"columns\": \"many\" }")]
+    public void A_file_that_is_not_mullions_is_refused_and_left_alone(string content)
+    {
+        File.WriteAllText(FilePath, content);
+
+        Assert.Null(SettingsStore.TryReadForImport(FilePath));
+
+        // Unlike loading Mullion's own file, importing never moves the file aside.
+        Assert.Equal(content, File.ReadAllText(FilePath));
+        Assert.False(File.Exists(FilePath + ".bad"));
+    }
+
+    [Fact]
+    public void A_missing_file_cannot_be_imported()
+    {
+        Assert.Null(SettingsStore.TryReadForImport(Path.Combine(_dir, "nothing.json")));
+    }
+
+    [Fact]
+    public void How_mullion_runs_and_updates_is_copied_with_the_rest()
+    {
+        var source = new Settings { RunAsAdministrator = true, CheckForUpdates = false };
+        var copy = new Settings();
+
+        copy.CopyFrom(source);
+
+        Assert.True(copy.RunAsAdministrator);
+        Assert.False(copy.CheckForUpdates);
+    }
+
+    [Fact]
     public void Enum_values_are_stored_as_readable_text()
     {
         SettingsStore.Save(FilePath, new Settings { SnapMoveModifier = SnapModifier.Shift });
