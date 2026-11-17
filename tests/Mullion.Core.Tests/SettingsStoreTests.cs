@@ -23,8 +23,8 @@ public sealed class SettingsStoreTests : IDisposable
     {
         var settings = SettingsStore.Load(FilePath);
 
-        Assert.Equal(4, settings.Columns);
-        Assert.Equal(4, settings.Rows);
+        Assert.Equal(60, settings.Columns);
+        Assert.Equal(60, settings.Rows);
         Assert.Equal(0, settings.WindowGap);
         Assert.Equal(SnapModifier.Ctrl, settings.SnapMoveModifier);
     }
@@ -73,7 +73,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         var settings = SettingsStore.Load(FilePath);
 
-        Assert.Equal(4, settings.Columns);
+        Assert.Equal(Settings.DefaultGridSize, settings.Columns);
         Assert.True(File.Exists(FilePath + ".bad"));
         Assert.False(File.Exists(FilePath));
     }

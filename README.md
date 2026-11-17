@@ -28,7 +28,7 @@ While the grid is showing:
 
 | Input | Effect |
 |---|---|
-| Mouse wheel | Makes the grid finer or coarser for this placement |
+| Mouse wheel | Adds or removes one column and one row per notch, for this placement only (from 1 up to 100) |
 | Right-click again | Picks a new first corner |
 | Esc | Cancels; the window stays where it was |
 
@@ -64,7 +64,9 @@ the active window moves there, without touching the mouse.
 Open **Settings… → Zones → Add zone…**, then:
 
 1. Choose the zone's grid. Each zone has its own, so "left third" (3 × 1) and
-   "top-right quarter" (2 × 2) can live side by side.
+   "top-right quarter" (2 × 2) can live side by side. A new zone starts on a
+   grid of at most 12 × 12, which is easier to pick cells on than a fine main
+   grid.
 2. Drag across the picture to select the cells.
 3. Click the shortcut box and press the keys, for example `Ctrl+Alt+1`. A
    shortcut needs Ctrl, Alt or the Windows key.
@@ -168,8 +170,9 @@ combination while it runs.
 Right-click the Mullion icon in the notification area and choose **Settings…**
 (or double-click the icon).
 
-- **Grid**: number of columns and rows, from 1 to 100 each (the same grid is
-  used on every monitor); the gap between neighbouring windows and the gap at
+- **Grid**: number of columns and rows, from 1 to 100 each and 60 × 60 to begin
+  with (the same grid is used on every monitor); the gap between neighbouring
+  windows and the gap at
   the screen edges (zero means windows sit flush); the mouse button that shows
   the grid and the key that cancels it; and the key for moving on the grid.
 - **Zones**: the saved zones and their shortcuts, and the shortcut for arranging
@@ -220,11 +223,12 @@ dotnet run --project src/Mullion
 and keyboard against a window of its own. It takes over the mouse for a few
 seconds.
 
-- Gestures: start Mullion with default settings, then run the probe.
-- Zone shortcuts, arranging and rules: copy
-  `tests/Mullion.GestureProbe/zones.settings.json` to `settings.json` next to
-  Mullion.exe, start Mullion, then run the probe with the argument `zones`,
-  `arrange` or `rules`.
+- Gestures and the wheel: copy
+  `tests/Mullion.GestureProbe/gestures.settings.json` to `settings.json` next to
+  Mullion.exe, start Mullion, then run the probe. (Every probe settings file
+  uses a 4 × 4 grid, so the cells are large enough to aim at.)
+- Zone shortcuts, arranging and rules: the same with `zones.settings.json` and
+  the argument `zones`, `arrange` or `rules`.
 - Remembering placements: the same with `remember.settings.json` and the
   argument `remember`.
 - Exclusions: the same with `exclusions.settings.json` and the argument

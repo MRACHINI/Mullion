@@ -176,8 +176,9 @@ public class GestureMachineTests
         machine.OnMove(new PointI(1300, 1000));
         machine.OnLeftUp(new PointI(1300, 1000));
 
-        // The wheel doubled the 4 x 4 grid, so the cells are counted on 8 x 8.
-        Assert.Equal(new GridPlacement(Area, 8, 8, new CellSpan(2, 2, 5, 7)), host.LastGrid);
+        // The wheel added a column and a row to the 4 x 4 grid, so the cells are
+        // counted on 5 x 5.
+        Assert.Equal(new GridPlacement(Area, 5, 5, new CellSpan(1, 1, 3, 4)), host.LastGrid);
     }
 
     [Fact]
@@ -346,19 +347,69 @@ public class GestureMachineTests
         machine.OnMoveSizeEnd(Window);
         machine.OnButtonUp(TriggerButton.Right, new PointI(100, 100));
 
+        // Each notch adds or removes one column and one row.
         Assert.True(machine.OnWheel(new PointI(100, 100), 120));
-        Assert.Equal((8, 8), (host.Overlay!.Columns, host.Overlay.Rows));
+        Assert.Equal((5, 5), (host.Overlay!.Columns, host.Overlay.Rows));
 
         Assert.True(machine.OnWheel(new PointI(100, 100), -120));
         Assert.True(machine.OnWheel(new PointI(100, 100), -120));
-        Assert.Equal((2, 2), (host.Overlay!.Columns, host.Overlay.Rows));
+        Assert.Equal((3, 3), (host.Overlay!.Columns, host.Overlay.Rows));
 
-        // The density cannot go below half.
-        Assert.True(machine.OnWheel(new PointI(100, 100), -120));
+        // The grid cannot go below a single cell.
+        for (int i = 0; i < 5; i++)
+        {
+            Assert.True(machine.OnWheel(new PointI(100, 100), -120));
+        }
+
+        Assert.Equal((1, 1), (host.Overlay!.Columns, host.Overlay.Rows));
+
+        // The notches that had no effect are not owed: one notch back is one step.
+        Assert.True(machine.OnWheel(new PointI(100, 100), 120));
         Assert.Equal((2, 2), (host.Overlay!.Columns, host.Overlay.Rows));
 
         machine.OnLeftUp(new PointI(100, 100));
         Assert.Equal([(Window, new RectI(0, 0, 960, 520), false)], host.Placements);
+    }
+
+    [Fact]
+    public void The_wheel_stops_at_a_hundred_cells()
+    {
+        var (machine, host) = Create(new GestureConfig(Columns: 98, Rows: 60));
+        StartDrag(machine);
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
+        machine.OnMoveSizeEnd(Window);
+
+        for (int i = 0; i < 5; i++)
+        {
+            machine.OnWheel(new PointI(100, 100), 120);
+        }
+
+        // The columns reached a hundred after two notches, and the rows stop with them.
+        Assert.Equal((100, 62), (host.Overlay!.Columns, host.Overlay.Rows));
+
+        machine.OnWheel(new PointI(100, 100), -120);
+        Assert.Equal((99, 61), (host.Overlay!.Columns, host.Overlay.Rows));
+    }
+
+    [Fact]
+    public void A_smooth_wheel_takes_a_whole_notch_to_make_a_step()
+    {
+        var (machine, host) = Create();
+        StartDrag(machine);
+        machine.OnButtonDown(TriggerButton.Right, new PointI(100, 100));
+        machine.OnMoveSizeEnd(Window);
+
+        // Small parts of a notch are hidden from other programs but change nothing yet.
+        Assert.True(machine.OnWheel(new PointI(100, 100), 40));
+        Assert.True(machine.OnWheel(new PointI(100, 100), 40));
+        Assert.Equal((4, 4), (host.Overlay!.Columns, host.Overlay.Rows));
+
+        Assert.True(machine.OnWheel(new PointI(100, 100), 40));
+        Assert.Equal((5, 5), (host.Overlay!.Columns, host.Overlay.Rows));
+
+        // Several notches reported at once are that many steps.
+        machine.OnWheel(new PointI(100, 100), 360);
+        Assert.Equal((8, 8), (host.Overlay!.Columns, host.Overlay.Rows));
     }
 
     [Fact]

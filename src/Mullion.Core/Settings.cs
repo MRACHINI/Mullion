@@ -64,14 +64,20 @@ public sealed class Settings
     public const int MaxGridSize = 100;
 
     /// <summary>
-    /// The finest grid an area can be described on: the largest main grid at the
-    /// highest density the mouse wheel reaches during a placement.
+    /// The finest grid an area can be described on. It is larger than the main
+    /// grid can be because the mouse wheel once multiplied the grid, and areas
+    /// remembered then are still read.
     /// </summary>
     public const int MaxAreaGridSize = MaxGridSize * 4;
     public const int MaxGap = 200;
 
-    public int Columns { get; set; } = 4;
-    public int Rows { get; set; } = 4;
+    public const int DefaultGridSize = 60;
+
+    /// <summary>The largest grid a new zone starts on, so its cells are easy to pick.</summary>
+    public const int NewZoneGridSize = 12;
+
+    public int Columns { get; set; } = DefaultGridSize;
+    public int Rows { get; set; } = DefaultGridSize;
     public int WindowGap { get; set; }
     public int EdgeGap { get; set; }
     public SnapModifier SnapMoveModifier { get; set; } = SnapModifier.Ctrl;

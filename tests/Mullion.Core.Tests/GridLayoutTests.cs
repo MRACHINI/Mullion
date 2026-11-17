@@ -168,12 +168,19 @@ public class GridLayoutTests
 
     [Theory]
     [InlineData(4, 4, 0, 4, 4)]
-    [InlineData(4, 4, 1, 8, 8)]
-    [InlineData(4, 4, 3, 16, 16)]
-    [InlineData(4, 4, -1, 2, 2)]
-    [InlineData(1, 3, -1, 1, 2)]
-    [InlineData(6, 4, 99, 24, 16)]
-    public void Density_scales_the_grid(int columns, int rows, int level, int expectedColumns, int expectedRows)
+    [InlineData(4, 4, 1, 5, 5)]
+    [InlineData(4, 4, 3, 7, 7)]
+    [InlineData(4, 4, -1, 3, 3)]
+    [InlineData(60, 60, 1, 61, 61)]
+    // Neither direction goes below one cell or above a hundred, and the two
+    // always move together.
+    [InlineData(4, 4, -99, 1, 1)]
+    [InlineData(1, 3, -1, 1, 3)]
+    [InlineData(6, 4, -99, 3, 1)]
+    [InlineData(60, 60, 999, 100, 100)]
+    [InlineData(6, 4, 999, 100, 98)]
+    [InlineData(100, 100, 1, 100, 100)]
+    public void Density_adds_one_column_and_one_row_per_step(int columns, int rows, int level, int expectedColumns, int expectedRows)
     {
         Assert.Equal((expectedColumns, expectedRows), GridDensity.Apply(columns, rows, level));
     }

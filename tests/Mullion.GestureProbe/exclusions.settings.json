@@ -1,4 +1,6 @@
 {
+  "columns": 4,
+  "rows": 4,
   "snapMoveModifier": "Shift",
   "rememberPlacements": true,
   "excludedPrograms": [ "Mullion.GestureProbe" ],

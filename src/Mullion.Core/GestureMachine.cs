@@ -119,6 +119,10 @@ public sealed class GestureMachine
     private PointI _anchor;
     private RectI _area;
     private int _density;
+
+    // Wheel movement not yet turned into a step.
+    private int _wheel;
+    private const int WheelNotch = 120;
     private OverlayModel? _shown;
     private (nint Window, RectI Bounds, bool KeepSize, GridPlacement? Grid)? _pending;
 
@@ -255,8 +259,19 @@ public sealed class GestureMachine
         }
 
         _last = point;
-        _density = GridDensity.ClampLevel(_density + Math.Sign(delta));
-        RefreshGrid();
+
+        // One notch of an ordinary wheel is one step. A smooth wheel reports a
+        // notch in several small parts, which are added up until they make one.
+        _wheel += delta;
+        int steps = _wheel / WheelNotch;
+        _wheel -= steps * WheelNotch;
+        if (steps != 0)
+        {
+            var config = _config;
+            _density = GridDensity.ClampLevel(config.Columns, config.Rows, _density + steps);
+            RefreshGrid();
+        }
+
         return true;
     }
 
@@ -349,6 +364,7 @@ public sealed class GestureMachine
         _mode = Mode.Anchoring;
         _systemMoveEnded = false;
         _density = 0;
+        _wheel = 0;
         _pending = null;
 
         // Hand the window back to where it started. From here on only the overlay

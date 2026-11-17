@@ -1,4 +1,6 @@
 {
+  "columns": 4,
+  "rows": 4,
   "rememberPlacements": false,
   "arrangeShortcut": "Ctrl+Alt+Shift+F10",
   "zones": [

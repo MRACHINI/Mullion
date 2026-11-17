@@ -1,4 +1,6 @@
 {
+  "columns": 4,
+  "rows": 4,
   "snapMoveModifier": "None",
   "gridButton": "Middle",
   "cancelKey": "F9",

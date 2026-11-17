@@ -1,7 +1,8 @@
 ﻿// Drives the real mouse to check Mullion end to end against a window of its own.
 //
-// Mullion must already be running with its default settings (4 x 4 grid, no gaps,
-// Ctrl as the move-on-grid key). The probe takes over the mouse for a few seconds:
+// Mullion must already be running with gestures.settings.json as its settings
+// (a 4 x 4 grid, no gaps, Ctrl as the move-on-grid key). The probe takes over the
+// mouse for a few seconds:
 //
 //   dotnet run --project tests/Mullion.GestureProbe
 //
@@ -634,6 +635,37 @@ try
         Check("Right-click then release places the window on the cell under the cursor", Win.Frame(window), expected);
     }
 
+    // 3b. Each notch of the wheel adds one column and one row: one notch makes the
+    // 4 x 4 grid 5 x 5, and in a new placement, which starts from 4 x 4 again, two
+    // notches the other way make it 2 x 2. The wheel is turned only while the test
+    // window is being dragged, so it goes nowhere else.
+    foreach (var (notches, size) in new[] { (1, 5), (-2, 2) })
+    {
+        var before = Win.Frame(window);
+        var grip = Grip(before);
+        var cell = (X: work.Left + (w / 8), Y: work.Top + (h / 8));
+
+        Press(grip.X, grip.Y);
+        Mouse.Glide(grip.X, grip.Y, cell.X, cell.Y);
+        Thread.Sleep(200);
+        Mouse.RightDown();
+        Thread.Sleep(60);
+        Mouse.RightUp();
+        Thread.Sleep(200);
+        for (int i = 0; i < Math.Abs(notches); i++)
+        {
+            Mouse.Wheel(Math.Sign(notches));
+            Thread.Sleep(60);
+        }
+
+        Thread.Sleep(150);
+        Mouse.LeftUp();
+        Thread.Sleep(700);
+
+        var expected = new Win.RECT(work.Left, work.Top, work.Left + (w / size), work.Top + (h / size));
+        Check($"{Math.Abs(notches)} wheel notch(es) make the grid {size} x {size}", Win.Frame(window), expected);
+    }
+
     // 4. Esc abandons the gesture and leaves the window where the drag started.
     {
         var before = Win.Frame(window);
@@ -883,10 +915,13 @@ internal static class Mouse
     public static void MiddleDown() => Send(0x0020);
     public static void MiddleUp() => Send(0x0040);
 
-    private static void Send(uint flags, int dx = 0, int dy = 0)
+    /// <summary>Turns the wheel by whole notches; a positive number is away from the user.</summary>
+    public static void Wheel(int notches) => Send(0x0800, data: notches * 120);
+
+    private static void Send(uint flags, int dx = 0, int dy = 0, int data = 0)
     {
         var input = new Win.INPUT { Type = 0 };
-        input.Data.Mouse = new Win.MOUSEINPUT { Dx = dx, Dy = dy, Flags = flags };
+        input.Data.Mouse = new Win.MOUSEINPUT { Dx = dx, Dy = dy, MouseData = unchecked((uint)data), Flags = flags };
         Win.SendInput(1, [input], Marshal.SizeOf<Win.INPUT>());
     }
 }

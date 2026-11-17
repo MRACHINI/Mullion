@@ -399,17 +399,25 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>A starting point for a new zone: the left half of the main grid.</summary>
-    public Zone NewZone() => new()
+    /// <summary>
+    /// A starting point for a new zone: the left half of the main grid, or of a
+    /// coarser one when the main grid is too fine to pick cells on comfortably.
+    /// </summary>
+    public Zone NewZone()
     {
-        Name = $"Zone {_settings.Zones.Count + 1}",
-        Columns = _settings.Columns,
-        Rows = _settings.Rows,
-        Column0 = 0,
-        Row0 = 0,
-        Column1 = Math.Max(0, (_settings.Columns / 2) - 1),
-        Row1 = _settings.Rows - 1,
-    };
+        int columns = Math.Min(_settings.Columns, Settings.NewZoneGridSize);
+        int rows = Math.Min(_settings.Rows, Settings.NewZoneGridSize);
+        return new()
+        {
+            Name = $"Zone {_settings.Zones.Count + 1}",
+            Columns = columns,
+            Rows = rows,
+            Column0 = 0,
+            Row0 = 0,
+            Column1 = Math.Max(0, (columns / 2) - 1),
+            Row1 = rows - 1,
+        };
+    }
 
     /// <summary>The zones other than the one shown in a row; all zones when the row is null.</summary>
     public IReadOnlyList<Zone> ZonesExcept(ZoneRow? row) =>
